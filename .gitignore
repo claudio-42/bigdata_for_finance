@@ -1,0 +1,10 @@
+# Ignorando a pasta que possui o ambiente virtual
+.venv/
+
+# Variáveis de ambiente
+.env
+
+# Arquivos do Jupyter e do Python em execução sejam comitados
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
