@@ -1,71 +1,110 @@
-# Dicionário de Variáveis e Premissas — Setor: Alimentos
+# 📑 Data Contract — Camada Gold (Setor: Alimentos)
 
-Este documento serve para mapear as contas que o nosso grupo vai puxar da camada Silver (layer_02_silver) e estruturar as variáveis para rodar os cálculos dos indicadores em Python na camada Gold.
+**Escopo:** Definição das variáveis contábeis, fontes físicas, regras de normalização e fórmulas dos indicadores financeiros para o setor de Alimentos e Bebidas.
+**Base de Origem:** layer_02_silver (PostgreSQL)  
+**Tabela Física Fonte:** layer_02_silver.dfp_cia_aberta_consolidado  
+**Destino:** layer_03_gold.indicadores_setor_alimentos  
+**Alinhamento:** Dicionário de Diretrizes do Prof. Ivan Mello  
 
 ---
 
-## 1. Tabela De-Para (Mapeamento de Contas do Banco)
+## 1. Mapeamento de Variáveis (De-Para Contábil)
 
-Para rodar as queries sem duplicar valores e pegar o dado correto, o grupo definiu que os filtros obrigatórios no SQL serão: `ORDEM_EXERC = 'LAST'` e `"IS_LEAF" = true`.
+Para garantir a unicidade dos registos no pipeline em Python e evitar duplicações por reenvios de documentos, o consumo dos dados exige a aplicação estrita dos filtros: ORDEM_EXERC = 'LAST' e "IS_LEAF" = true.
 
-| Código | Descrição da Variável | Código da Conta (`CD_CONTA`) | Origem | Conta Fixa? (`ST_CONTA_FIXA`) | Regra de Tratamento / Observações |
+| Código | Descrição da Variável | Código da Conta (CD_CONTA) | Origem | Conta Fixa? | Regra de Negócio / Tratamento Obrigatório |
 | :---: | :--- | :---: | :---: | :---: | :--- |
-| **V01** | Ativo Circulante (AC) | `1.01` | BP | S | Padrão da CVM. |
-| **V02** | Realizável a Longo Prazo (RLP) | `1.02.01` | BP | S | Vem do Ativo Não Circulante. |
-| **V03** | Passivo Circulante (PC) | `2.01` | BP | S | Padrão da CVM. |
-| **V04** | Exigível a Longo Prazo (ELP) | `2.02` | BP | S | Equivalente ao Passivo Não Circulante. |
-| **V05** | Ativo Circulante Financeiro (ACF) | `1.01.01` + `1.01.02` | BP | N | Precisa somar Caixa (`1.01.01`) com Aplicações (`1.01.02`). |
-| **V06** | Passivo Circulante Financeiro (PCF) | `2.01.04` | BP | N | Pegar só a conta de Empréstimos e Financiamentos de Curto Prazo. |
-| **V07** | Ativo Circulante Operacional (ACO) | *Cálculo* | BP | N | Conta calculada no Python fazendo V01 - V05. |
-| **V08** | Passivo Circulante Operacional (PCO) | *Cálculo* | BP | N | Conta calculada no Python fazendo V03 - V06. |
-| **V09** | Receita Líquida de Vendas | `3.01` | DRE | S | Variável base para as margens e os giros. |
-| **V10** | Lucro Bruto | `3.03` | DRE | S | Padrão da CVM. |
-| **V11** | Lucro Operacional (EBIT) | `3.05` | DRE | S | Resultado Antes do Resultado Financeiro e Impostos. |
-| **V12** | Lucro Líquido | `3.11` | DRE | S | Resultado final consolidado da empresa. |
-| **V13** | Patrimônio Líquido (PL) | `2.03` | BP | S | Usado para calcular o ROE e Endividamento. |
-| **V14** | Ativo Total | `1` | BP | S | Conta raiz. |
-| **V15** | Custo das Vendas (CMV) | `3.02` | DRE | S | Vem negativo do banco de dados, precisa tratar no código usando abs(). |
-| **V16** | Saldo de Estoques | `1.01.04` | BP | S | Muito importante para o setor de alimentos por causa dos grãos/insumos. |
-| **V17** | Contas a Receber (Clientes) | `1.01.03` | BP | S | Valores a receber de supermercados e distribuidores. |
-| **V18** | Fornecedores | `2.01.02` | BP | S | Dívida com produtores de matéria-prima. |
+| **V01** | Ativo Total | 1 | BP | Sim | Linha base para o cálculo de ROA, ROI e estrutura de capitais. |
+| **V02** | Ativo Circulante | 1.01 | BP | Sim | Parâmetro de liquidez e modelo de Fleuriet. |
+| **V04** | Realizável a Longo Prazo | 1.02.01 | BP | Sim | Filtro de curto/longo prazo para a Liquidez Geral. |
+| **V05** | Ativo Imobilizado | 1.02.03 | BP | Sim | Valor líquido das contas imobilizadas (pós-depreciação). |
+| **V06** | Estoques Totais | 1.01.04 (+ 1.01.07) | BP | Não | **Regra do Setor:** Soma do Estoque padrão (1.01.04) com os Ativos Biológicos (1.01.07) para JBS e BRF. Se nulo, usar 0. |
+| **V07** | Contas a Receber (Clientes) | 1.01.03 | BP | Sim | Direitos de curto prazo com clientes. Base do PMRV. |
+| **V09** | Fornecedores | 2.01.02 | BP | Sim | Obrigações operacionais de curto prazo. Base do PMPC. |
+| **V10** | Passivo Circulante | 2.01 | BP | Sim | Obrigações financeiras e operacionais de curto prazo. |
+| **V11** | Passivo Não Circulante | 2.02 | BP | Sim | Equivalente ao Exigível a Longo Prazo. |
+| **V12** | Patrimônio Líquido | 2.03 | BP | Sim | Se for $\le 0$, disparar trava de nulo no Python para ROE/ROI. |
+| **V13** | Empréstimos e Financ. (CP) | 2.01.04 | BP | Sim | Mapeia o risco bancário imediato e serve como o PCF. |
+| **V14** | Empréstimos e Financ. (LP) | 2.02.01 | BP | Sim | Dívida onerosa de longo prazo. Base do Capital Empregado. |
+| **V15** | Ativo Circ. Financeiro (ACF)| 1.01.01 + 1.01.02 | BP | Não | Caixa/Disponibilidades (1.01.01) somado a Aplicações (1.01.02). |
+| **V16** | Passivo Circ. Financeiro (PCF)| 2.01.04 (=V13) | BP | Não | Equivalente aos empréstimos de curto prazo para o modelo Fleuriet. |
+| **V17** | Receita Líquida de Vendas | 3.01 | DRE | Sim | Base nominal de todas as margens e giros do pipeline. |
+| **V18** | Custo das Vendas (CPV) | 3.02 | DRE | Sim | **Tratamento:** Extraído como valor negativo. Obrigatório aplicar abs(V18). |
+| **V19** | Lucro Bruto | 3.03 | DRE | Sim | Resultado deduzido apenas o custo de fabricação. |
+| **V20** | Lucro Operacional (EBIT) | 3.05 | DRE | Sim | Lucro antes dos efeitos financeiros e fiscais. |
+| **V21** | Lucro Líquido do Exercício | 3.11 | DRE | Sim | Linha final de resultado atribuído aos acionistas. |
+| **V22** | Disponibilidades (Caixa) | 1.01.01 | BP | Sim | Recurso em caixa estrito. Usado na Liquidez Imediata. |
+| **V25** | LPA Básico ON | 3.99.01.01 | DRE | Não | Captura direta da folha de detalhe. Proibido usar a conta mãe 3.99. |
+| **V26** | LPA Diluído ON | 3.99.02.01 | DRE | Não | Fallback automático para V25 usando COALESCE(V26, V25). |
 
 ---
 
-## 2. Notas de Tratamento e Regras de Negócio (Ajustes para o Código)
+## 2. Regras de Saneamento e Tratamento de Exceções
 
-* **Nota 1 (Inversão do CMV):** Como os valores de custo (conta `3.02`) vêm com sinal negativo direto do banco, vamos aplicar a função `abs()` no script em Python para não quebrar as fórmulas de rotação e prazos médios.
-* **Nota 2 (Contas Inexistentes):** Nem todas as empresas do setor listam aplicações financeiras de curto prazo (`1.01.02`). Se a query retornar nulo ou vazio para essa conta, o script vai considerar o valor como 0 para não travar a soma do ACF.
-* **Nota 3 (Filtro IS_LEAF):** Para não duplicar ou inflar os valores na hora de somar as contas-mãe, todas as buscas feitas via SQLAlchemy vão rodar obrigatoriamente com o filtro `WHERE IS_LEAF = true`.
-* **Nota 4 (Ajuste de Versões das DFPs):** Quando alguma empresa tiver reenviado os dados (gerando mais de uma versão no banco), o algoritmo vai ordenar pela coluna de versão e manter apenas o registro mais atualizado para o cálculo final.
-
----
-
-## 3. Fórmulas dos Indicadores (7 Grupos)
-
-As variáveis listadas acima serão usadas no pipeline para calcular os seguintes indicadores:
-
-1. **Liquidez:** Corrente ($V01 / V03$), Seca ($(V01 - V16) / V03$), Geral ($(V01 + V02) / (V03 + V04)$) e Imediata ($V05 / V03$).
-2. **Endividamento:** Grau de Endividamento Total ($(V03 + V04) / V14$) e Participação de Capital de Terceiros ($(V03 + V04) / V13$).
-3. **Margens:** Margem Bruta ($V10 / V09$), Margem Operacional ($V11 / V09$) e Margem Líquida ($V12 / V09$).
-4. **Rentabilidade:** ROA ($V12 / V14$), ROE ($V12 / V13$) e Giro do Ativo ($V09 / V14$).
-5. **Atividade:** Giro de Estoques ($V15 / V16$), Giro de Clientes ($V09 / V17$) e Giro de Fornecedores ($V15 / V18$).
-6. **Ciclos:** PME ($365 / \text{Giro Estoques}$), PMR ($365 / \text{Giro Clientes}$) e PMP ($365 / \text{Giro Fornecedores}$). Ciclo Operacional ($PME + PMR$) e Ciclo Financeiro ($(PME + PMR) - PMP$).
-7. **Modelo Dinâmico:** Capital de Giro ($V01 - V03$), Necessidade de Capital de Giro ($V07 - V08$) e Saldo de Tesouraria ($V05 - V06$).
+**N1 — Inversão Estatística do Custo (V18):** O pipeline extrai a conta 3.02 com sinal negativo do PostgreSQL. O contrato estipula a conversão matemática obrigatória (abs(V18)) para mitigar o erro de prazos médios negativos.
+**N2 — Diretriz para Empresas sem Estoque:** Caso alguma empresa integrada ao pipeline não reporte estoques (V06), o sistema atribuirá zero para o cálculo de liquidez, mas forçará a saída como **'N/A'** nos indicadores de Giro de Estoque, PMRE e Ciclo Económico, impedindo divisões por zero.
+**N3 — Validação Analítica de Outliers (Caso Marisa):** Conforme mapeado no histórico das DFP, a folha 3.99 sofre truncamento. O script deve ler exclusivamente os nós folhas (3.99.01.01 e 3.99.02.01), aplicando a cláusula de barreira abs(VL_CONTA_TRATADO) > 10000 para limpar anomalias de registo de 2021.
+**N4 — Consolidação Intertemporal:** O algoritmo coletará as informações agrupando por empresa e data de referência, capturando o maior número de versão (MAX(VERSAO)) para expurgar balanços retificados secundários.
 
 ---
 
-## 4. Validação Cruzada (Amostra de Teste)
+## 3. Especificação Algorítmica dos Indicadores (7 Grupos Oficiais)
 
-Para provar que os dados que estão saindo do banco batem com a realidade, o grupo escolheu a empresa M. Dias Branco S.A. (CD_CVM: 020443) do ano de 2023 para fazer a checagem manual:
+Os cálculos de tempo e giros operacionais adotam rigorosamente o ano comercial de **360 dias**.
 
-1. **Ativo Circulante (Conta 1.01):** O valor extraído do PostgreSQL bateu certinho com o balanço patrimonial oficial publicado no StatusInvest (R$ 4.015.342.000,00). Dados validados.
-2. **Receita de Venda (Conta 3.01):** O saldo da DRE no banco também bateu com o número oficial do mercado (R$ 10.843.120.000,00). Dados validados.
+### 3.1 Grupo 1: Liquidez
+**Liquidez Geral:** $(V02 + V04) / (V10 + V11)$
+**Liquidez Corrente:** $V02 / V10$
+**Liquidez Seca:** $(V02 - V06) / V10$
+**Liquidez Imediata:** $V22 / V10$
+
+### 3.2 Grupo 2: Endividamento e Estrutura de Capitais
+**Participação de Capital de Terceiros / Capital Próprio:** $((V10 + V11) / V12) \times 100$
+**Participação de Capital de Terceiros / Ativo Total:** $((V10 + V11) / V01) \times 100$
+**Garantia do Capital Próprio ao Capital de Terceiros:** $(V12 / (V10 + V11)) \times 100$
+**Composição do Endividamento:** $(V10 / (V10 + V11)) \times 100$
+**Imobilização do Capital Próprio:** $(V05 / V12) \times 100$
+**Imobilização do Ativo Total:** $(V05 / V01) \times 100$
+
+### 3.3 Grupo 3: Margens
+**Margem Bruta:** $(V19 / V17) \times 100$
+**Margem Operacional:** $(V20 / V17) \times 100$
+**Margem Líquida:** $(V21 / V17) \times 100$
+**Lucro por Ação (LPA):** Mapeado via query direta da folha COALESCE(V26, V25)
+
+### 3.4 Grupo 4: Rentabilidade
+**ROA (Retorno sobre o Ativo):** $(V21 / V01) \times 100$
+**ROE (Retorno sobre o Patrimônio):** Se $V12 > 0 \rightarrow (V21 / V12) \times 100$, caso contrário retornar Nulo (evita distorções de PL negativo).
+**ROI (Retorno sobre o Investimento):** $(V21 / (V13 + V14 + V12)) \times 100$
+
+### 3.5 Grupo 5: Atividade (Giros e Prazos — Base de 360 Dias)
+**Giro dos Estoques:** $V18 / V06$ | **PMRE (Prazo Médio de Estoque):** $(V06 \times 360) / V18$
+**Giro de Contas a Receber:** $V17 / V07$ | **PMRV (Prazo Médio de Recebimento):** $(V07 \times 360) / V17$
+**Giro de Contas a Pagar:** $V18 / V09$ | **PMPC (Prazo Médio de Pagamento):** $(V09 \times 360) / V18$
+**Giro do Ativo Circulante:** $V17 / V02$ | **PMRAC:** $(V02 \times 360) / V17$
+
+### 3.6 Grupo 6: Ciclos Operacionais
+**Ciclo Económico:** $PMRE + PMRV$
+**Ciclo Financeiro:** $PMRE + PMRV - PMPC$
+
+### 3.7 Grupo 7: Modelo Dinâmico de Capital de Giro (Fleuriet)
+**Capital de Giro Líquido (CGL):** $V02 - V10$
+**Ativo Circulante Operacional (ACO):** $V06 + V07$
+**Passivo Circulante Operacional (PCO):** $V09$
+**Necessidade de Capital de Giro (NCG):** $ACO - PCO$
+**Saldo de Tesouraria (ST):** $V15 - V16$
 
 ---
 
-## 5. Anomalias Mapeadas no Setor de Alimentos
+## 4. Validação Cruzada de Controle (M. Dias Branco — 2023)
 
-Durante a análise prévia do setor de alimentos, encontramos alguns pontos fora da curva que o nosso código Python vai precisar tratar:
+Ponto de controlo estático inserido no pipeline para assegurar o funcionamento dos mapeamentos:
+1. **Ativo Circulante (V02):** R$ 4.015.342.000,00 (PostgreSQL integrado vs Demonstrações Oficiais).
+2. **Receita Líquida (V17):** R$ 10.843.120.000,00 (PostgreSQL integrado vs Demonstrações Oficiais).
 
-1. **Ativos Biológicos (JBS e BRF):** Empresas grandes de proteína animal deixam bilhões lançados como "Ativos Biológicos" (animais/aves em crescimento) na conta `1.01.07`. Se o nosso código calcular o Giro de Estoques olhando puramente a conta padrão de estoque (`1.01.04`), o resultado vai dar distorcido. Vamos precisar colocar um aviso ou tratar essa conta no código.
-2. **Problema do PL Negativo:** Empresas que estão em crise pesada ou recuperação judicial podem apresentar Passivo maior que o Ativo (Patrimônio Líquido Negativo). Se o Python tentar calcular o ROE (Lucro dividido por PL) sem travar isso, o resultado vai dar positivo de forma errada (Prejuízo dividido por número negativo dá positivo). Vamos colocar uma trava `if PL <= 0` para deixar o resultado como nulo nesses casos.
+---
+
+## 5. Idiossincrasias e Ajustes Setoriais (Alimentos)
+
+1. **Fusão de Contas de Armazenamento:** Devido às características biológicas da cadeia de fornecimento de proteína animal (JBS e BRF), o script Python obrigatoriamente consolidará os montantes da conta 1.01.07 (Ativos Biológicos de Curto Prazo) à variável padrão de Estoque (V06). Ignorar esta premissa gerará distorções críticas nas métricas de atividade de frigoríficos.
+2. **Tratamento de Alavancagem Crítica:** Bloqueio condicional implementado para inibir o output de ROE e ROI quando o denominador apresentar resultado menor ou igual a zero, preservando a coherence estatística da camada Gold.
