@@ -38,6 +38,13 @@ C = {
 GOLD_TABLE = "layer_03_gold.mart_indicadores_financeiros"
 MINERVA_CNPJ = "67.620.377/0001-14"   # Minerva S.A. (BEEF3)
 
+# Demonstrações contábeis hierárquicas (camada Silver) — schema idêntico nas três:
+#   CNPJ_CIA, DENOM_CIA, CD_CONTA, DS_CONTA, DT_REFER, VL_CONTA_TRATADO, GRUPO_DFP
+# O pipeline Silver já filtra ORDEM_EXERC = 'ÚLTIMO' (sem mistura de exercícios).
+SILVER_BP  = "layer_02_silver.n1_dfp_cia_aberta_bp"
+SILVER_DRE = "layer_02_silver.n1_dfp_cia_aberta_dre"
+SILVER_DFC = "layer_02_silver.n1_dfp_cia_aberta_dfc"
+
 
 def css_minerva() -> str:
     return f"""
@@ -518,6 +525,200 @@ def insights_do_grupo(insights, grupo):
 
 
 # ==============================================================================
+# 8B. DEMONSTRAÇÕES CONTÁBEIS (BP / DRE / DFC) — camada Silver hierárquica
+#     Renderizador genérico: as três demonstrações têm o mesmo schema, então uma
+#     única função monta a tabela hierárquica + KPIs + gráfico de cada uma.
+# ==============================================================================
+ESCALAS = {"R$ (unidade)": 1, "Milhares": 1e3, "Milhões": 1e6, "Bilhões": 1e9}
+
+# Contas de destaque no padrão CVM/DFP (usadas para KPIs/validação/gráficos).
+KPIS_BP  = [("Ativo Total", "1"), ("Passivo + PL", "2"),
+            ("Ativo Circulante", "1.01"), ("Patrimônio Líquido", "2.03")]
+KPIS_DRE = [("Receita Líquida", "3.01"), ("Resultado Bruto", "3.03"),
+            ("Result. Operacional (EBIT)", "3.05"), ("Lucro/Prejuízo Líquido", "3.11")]
+KPIS_DFC = [("Caixa Operacional", "6.01"), ("Caixa de Investimento", "6.02"),
+            ("Caixa de Financiamento", "6.03"), ("Variação de Caixa", "6.05")]
+
+
+@st.cache_data(ttl=600)
+def carregar_demonstrativo(cnpj, tabela):
+    """Lê uma demonstração hierárquica completa (todas as contas) da camada Silver."""
+    engine = get_engine()
+    q = text(f'''SELECT "CD_CONTA","DS_CONTA","DT_REFER","VL_CONTA_TRATADO"
+                 FROM {tabela}
+                 WHERE "CNPJ_CIA" = :cnpj
+                 ORDER BY "CD_CONTA","DT_REFER";''')
+    with engine.connect() as conn:
+        df = pd.read_sql(q, conn, params={"cnpj": cnpj})
+    if not df.empty:
+        df["ANO"] = pd.to_datetime(df["DT_REFER"]).dt.year
+        df["CD_CONTA"] = df["CD_CONTA"].astype(str)
+    return df
+
+
+def _load_silver(cnpj, tabela):
+    """Carga protegida: nunca derruba o app se a tabela/uma conexão falhar."""
+    try:
+        return carregar_demonstrativo(cnpj, tabela)
+    except Exception as e:
+        st.error(f"Falha ao consultar {tabela}: {e}")
+        return pd.DataFrame()
+
+
+def _profundidade(cd):
+    return str(cd).count(".")
+
+
+def _valor_conta(df_long, cd, ano):
+    """Valor de uma conta específica num ano (NaN se inexistente)."""
+    m = df_long[(df_long["CD_CONTA"] == cd) & (df_long["ANO"] == ano)]
+    return float(m["VL_CONTA_TRATADO"].iloc[0]) if not m.empty else np.nan
+
+
+def _serie_conta(df_long, cd, anos):
+    return np.array([_valor_conta(df_long, cd, a) for a in anos], dtype=float)
+
+
+def _card_simples(label, valor):
+    return f"""<div class="mnv-card"><div class="lbl">{label}</div>
+        <div class="val">{valor}</div></div>"""
+
+
+def pivot_demonstrativo(df_long, anos, nivel_max):
+    """Pivota CD_CONTA × ANO limitando ao nível de detalhe (1=grupo … 5=analítico)."""
+    if df_long.empty:
+        return pd.DataFrame()
+    max_dig = nivel_max * 2 - 1            # nível 1→1díg (1) | 2→3 (1.01) | 3→5 (1.01.01)
+    d = df_long[df_long["ANO"].isin(anos)].copy()
+    d = d[d["CD_CONTA"].str.replace(".", "", regex=False).str.len() <= max_dig]
+    if d.empty:
+        return pd.DataFrame()
+    return (d.pivot_table(index=["CD_CONTA", "DS_CONTA"], columns="ANO",
+                          values="VL_CONTA_TRATADO", aggfunc="sum")
+             .reset_index().sort_values("CD_CONTA").reset_index(drop=True))
+
+
+def _kpis_demonstrativo(df_long, mapa, ano_cur):
+    cols = st.columns(len(mapa))
+    for col, (lbl, cd) in zip(cols, mapa):
+        with col:
+            st.markdown(_card_simples(lbl, fmt_rs(_valor_conta(df_long, cd, ano_cur))),
+                        unsafe_allow_html=True)
+
+
+def _grafico_barras_contas(df_long, anos, contas, divisor, titulo, sufixo):
+    """Barras agrupadas por ano para um conjunto de contas-chave (rótulos legíveis)."""
+    cores = [C["grafite"], C["vermelho"], C["ambar"], C["grafite_claro"]]
+    fig = go.Figure()
+    xa = [str(a) for a in anos]
+    maxabs = 0.0
+    for (lbl, cd), cor in zip(contas, cores):
+        y = _serie_conta(df_long, cd, anos) / divisor
+        if np.all(np.isnan(y)):
+            continue
+        maxabs = max(maxabs, np.nanmax(np.abs(y)))
+        fig.add_trace(go.Bar(x=xa, y=y, name=lbl, marker_color=cor,
+                             text=[_br(v, 1) if pd.notna(v) else "" for v in y],
+                             textposition="outside", textfont=dict(size=12),
+                             cliponaxis=False,
+                             hovertemplate=lbl + ": %{y:,.1f} " + sufixo + "<extra></extra>"))
+    fig.update_layout(**layout_base(titulo), barmode="group")
+    fig.update_xaxes(type="category", gridcolor=C["cinza_borda"])
+    fig.update_yaxes(gridcolor=C["cinza_borda"], zeroline=True, zerolinecolor=C["cinza"],
+                     ticksuffix=f" {sufixo}")
+    if maxabs > 0:   # folga p/ os rótulos externos não cortarem
+        fig.update_yaxes(range=[min(0, -maxabs * 0.15), maxabs * 1.20])
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _validacao_bp(df_long, anos):
+    """Checa a identidade contábil Ativo = Passivo + PL ano a ano."""
+    partes, ok = [], True
+    for a in anos:
+        at, pa = _valor_conta(df_long, "1", a), _valor_conta(df_long, "2", a)
+        dif = at - pa if (pd.notna(at) and pd.notna(pa)) else np.nan
+        partes.append(f"{a}: {fmt_rs(dif)}")
+        if pd.notna(dif) and abs(dif) > max(1.0, abs(at) * 1e-6):
+            ok = False
+    detalhe = " · ".join(partes)
+    if ok:
+        st.success(f"✅ Balanço fechado (Ativo = Passivo + PL) em todos os anos. "
+                   f"Diferença residual — {detalhe}.")
+    else:
+        st.error(f"⚠️ Divergência em Ativo − (Passivo + PL): {detalhe}.")
+
+
+def aba_demonstrativo(df_long, anos_sel, titulo, tipo):
+    """Renderiza uma demonstração (tipo ∈ {'BP','DRE','DFC'}) na identidade Minerva."""
+    if df_long.empty:
+        st.warning(f"Sem dados de {titulo} na camada Silver para a empresa selecionada.")
+        return
+
+    anos_disp = sorted(int(a) for a in df_long["ANO"].unique())
+    anos = [a for a in anos_disp if a in anos_sel]
+    fallback = False
+    if not anos:                       # filtro global não bate com os anos da Silver
+        anos = anos_disp[-6:]
+        fallback = True
+
+    # --- controles locais (mantêm a sidebar do Cockpit limpa) ---
+    c1, c2 = st.columns(2)
+    with c1:
+        nivel = st.slider(f"Nível de detalhe — {titulo}", 1, 5, 3, key=f"nivel_{tipo}")
+    with c2:
+        escala_lbl = st.selectbox(f"Escala — {titulo}", list(ESCALAS.keys()),
+                                  index=3, key=f"escala_{tipo}")
+    divisor = ESCALAS[escala_lbl]
+    if fallback:
+        st.caption("Os anos do filtro lateral não existem nesta demonstração; "
+                   f"exibindo os disponíveis ({anos[0]}–{anos[-1]}).")
+
+    # --- KPIs do último ano ---
+    mapa = {"BP": KPIS_BP, "DRE": KPIS_DRE, "DFC": KPIS_DFC}[tipo]
+    _kpis_demonstrativo(df_long, mapa, max(anos))
+
+    # --- tabela hierárquica ---
+    piv = pivot_demonstrativo(df_long, anos, nivel)
+    if piv.empty:
+        st.info("Nenhuma conta neste nível de detalhe.")
+        return
+    cols_anos = sorted([c for c in piv.columns if isinstance(c, (int, np.integer))])
+    tabela = pd.DataFrame({
+        "Conta": piv["CD_CONTA"],
+        "Descrição": [("\u2003" * _profundidade(cd)) + ds
+                      for cd, ds in zip(piv["CD_CONTA"], piv["DS_CONTA"])],
+    })
+    for a in cols_anos:
+        tabela[str(a)] = (piv[a] / divisor).map(lambda v: _br(v, 2) if pd.notna(v) else "—")
+
+    st.markdown(f"#### {titulo} — valores em {escala_lbl}")
+    col_cfg = {"Conta": st.column_config.TextColumn("Conta", width="small"),
+               "Descrição": st.column_config.TextColumn("Descrição", width="large")}
+    for a in cols_anos:
+        col_cfg[str(a)] = st.column_config.TextColumn(str(a), width="small")
+    altura = min((len(tabela) + 1) * 35 + 4, 640)
+    st.dataframe(tabela, hide_index=True, use_container_width=True,
+                 column_config=col_cfg, height=altura)
+
+    # --- gráfico-chave + validação por tipo ---
+    sufixo = {"R$ (unidade)": "", "Milhares": "mil", "Milhões": "mi", "Bilhões": "bi"}[escala_lbl]
+    if tipo == "BP":
+        _grafico_barras_contas(df_long, anos, KPIS_BP[:2], divisor,
+                               f"Estrutura Patrimonial ({escala_lbl})", sufixo)
+        _validacao_bp(df_long, anos)
+    elif tipo == "DRE":
+        _grafico_barras_contas(df_long, anos, KPIS_DRE, divisor,
+                               f"Da Receita ao Lucro ({escala_lbl})", sufixo)
+        st.caption("Custos e despesas já entram com sinal negativo no padrão CVM; "
+                   "os subtotais (Resultado Bruto, EBIT, Lucro Líquido) somam diretamente.")
+    elif tipo == "DFC":
+        _grafico_barras_contas(df_long, anos, KPIS_DFC[:3], divisor,
+                               f"Fluxos por Atividade ({escala_lbl})", sufixo)
+        st.caption("Operacional, Investimento e Financiamento. A soma das três (mais variação "
+                   "cambial) explica a variação de caixa do período (6.05).")
+
+
+# ==============================================================================
 # 9. APLICAÇÃO PRINCIPAL
 # ==============================================================================
 def main():
@@ -563,7 +764,8 @@ def main():
 
     # ---- ABAS ----
     abas = st.tabs(["📊 Visão Geral", "💧 Liquidez", "🏦 Endividamento",
-                    "📈 Margens & Rentab.", "🔄 Atividade & Ciclos", "🔁 Fleuriet", "📋 Tabela"])
+                    "📈 Margens & Rentab.", "🔄 Atividade & Ciclos", "🔁 Fleuriet", "📋 Tabela",
+                    "🧾 Balanço (BP)", "🧮 DRE", "💵 DFC"])
 
     # ----- Aba 1: Visão geral + diagnóstico completo -----
     with abas[0]:
@@ -639,6 +841,21 @@ def main():
         st.markdown("#### Indicadores por ano")
         st.dataframe(tabela_indicadores(df), hide_index=True, use_container_width=True,
                      column_config={"Grupo": st.column_config.TextColumn("Grupo", width="small")})
+
+    # ----- Abas 8–10: Demonstrações contábeis (camada Silver, hierárquicas) -----
+    with abas[7]:
+        st.caption("Balanço Patrimonial completo e hierárquico, direto da camada Silver "
+                   "(mesma base que alimenta os indicadores do Cockpit).")
+        aba_demonstrativo(_load_silver(MINERVA_CNPJ, SILVER_BP), anos_sel,
+                          "Balanço Patrimonial", "BP")
+    with abas[8]:
+        st.caption("Demonstração do Resultado do Exercício (DRE), da receita ao lucro líquido.")
+        aba_demonstrativo(_load_silver(MINERVA_CNPJ, SILVER_DRE), anos_sel,
+                          "Demonstração do Resultado (DRE)", "DRE")
+    with abas[9]:
+        st.caption("Demonstração dos Fluxos de Caixa (DFC), por atividade.")
+        aba_demonstrativo(_load_silver(MINERVA_CNPJ, SILVER_DFC), anos_sel,
+                          "Demonstração dos Fluxos de Caixa (DFC)", "DFC")
 
     st.markdown("---")
     st.caption(f"Fonte: camada Gold (CVM/DFP) — {GOLD_TABLE}. "
