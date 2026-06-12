@@ -42,10 +42,10 @@ except ImportError:
 # 0. IDENTIDADE VISUAL — MINERVA FOODS
 # ==============================================================================
 C = {
-    "vermelho": "#E84752", "vermelho_escuro": "#C1323D", "vermelho_claro": "#F6B3B8",
-    "grafite": "#2B3D4A", "grafite_claro": "#3E5463", "creme": "#FBF8F4",
-    "cinza": "#6B7280", "cinza_borda": "#E5E7EB",
-    "verde": "#1E9E5A", "ambar": "#D97706", "vermelho_risco": "#DC2626",
+    "vermelho": "#E2334D", "vermelho_escuro": "#B5243A", "vermelho_claro": "#F5ADB6",
+    "grafite": "#1F2D38", "grafite_claro": "#41566A", "creme": "#F4F6F8",
+    "cinza": "#64748B", "cinza_borda": "#E2E8F0",
+    "verde": "#15803D", "ambar": "#B45309", "vermelho_risco": "#B91C1C",
 }
 
 GOLD_TABLE = "layer_03_gold.mart_indicadores_financeiros"
@@ -59,35 +59,154 @@ SILVER_DFC = "layer_02_silver.n1_dfp_cia_aberta_dfc"
 def css_minerva() -> str:
     return f"""
     <style>
-        .stApp {{ background-color: {C['creme']}; }}
-        h1,h2,h3,h4 {{ color: {C['grafite']}; font-weight: 700; }}
+        @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
+
+        /* ---------- Base ---------- */
+        html, body, .stApp, [class*="css"] {{
+            font-family: 'Inter', -apple-system, sans-serif;
+        }}
+        .stApp {{ background: {C['creme']}; }}
+        .block-container {{ padding-top: 1.4rem; max-width: 1280px; }}
+        h1,h2,h3,h4 {{
+            font-family: 'Archivo', sans-serif; color: {C['grafite']};
+            font-weight: 800; letter-spacing: -0.02em;
+        }}
+        p, li, span, label {{ color: {C['grafite']}; }}
+        [data-testid="stCaptionContainer"], .stCaption, small {{ color: {C['cinza']} !important; }}
+        hr {{ border-color: {C['cinza_borda']}; }}
+
+        /* ---------- Abas (correção do texto invisível + segmented control) ---------- */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 4px; background: #FFFFFF; padding: 6px;
+            border-radius: 14px; border: 1px solid {C['cinza_borda']};
+            box-shadow: 0 1px 3px rgba(31,45,56,0.06);
+            flex-wrap: wrap;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            height: 40px; border-radius: 9px; padding: 0 14px;
+            background: transparent; border: none;
+        }}
+        .stTabs [data-baseweb="tab"] p {{
+            font-size: 13.5px !important; font-weight: 600;
+            color: {C['grafite_claro']} !important;       /* sempre legível */
+            font-family: 'Inter', sans-serif;
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{ background: {C['creme']}; }}
+        .stTabs [aria-selected="true"] {{
+            background: {C['grafite']} !important;
+            box-shadow: 0 2px 6px rgba(31,45,56,0.25);
+        }}
+        .stTabs [aria-selected="true"] p {{ color: #FFFFFF !important; }}
+        .stTabs [data-baseweb="tab-highlight"],
+        .stTabs [data-baseweb="tab-border"] {{ display: none; }}
+
+        /* ---------- Sidebar escura ---------- */
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #18242E 0%, {C['grafite']} 100%);
+            border-right: none;
+        }}
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3 {{ color: #FFFFFF; }}
+        [data-testid="stSidebar"] p, [data-testid="stSidebar"] span,
+        [data-testid="stSidebar"] label, [data-testid="stSidebar"] small,
+        [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {{
+            color: #C7D2DC !important;
+        }}
+        [data-testid="stSidebar"] hr {{ border-color: rgba(255,255,255,0.12); }}
+        [data-testid="stSidebar"] [data-testid="stSliderTickBarMin"],
+        [data-testid="stSidebar"] [data-testid="stSliderTickBarMax"],
+        [data-testid="stSidebar"] [data-testid="stSliderThumbValue"] {{
+            color: #FFFFFF !important; font-weight: 600;
+        }}
+        [data-testid="stSidebar"] div[role="slider"] {{
+            background: {C['vermelho']} !important;
+            box-shadow: 0 0 0 4px rgba(226,51,77,0.25);
+        }}
+
+        /* ---------- Topbar ---------- */
         .mnv-topbar {{
-            background: linear-gradient(135deg, {C['grafite']} 0%, {C['grafite_claro']} 100%);
-            border-radius: 14px; padding: 22px 28px; margin-bottom: 8px;
+            background: linear-gradient(120deg, #18242E 0%, {C['grafite']} 55%, {C['grafite_claro']} 130%);
+            border-radius: 18px; padding: 26px 32px; margin-bottom: 14px;
             display:flex; align-items:center; justify-content:space-between;
-            box-shadow: 0 6px 18px rgba(43,61,74,0.18); }}
-        .mnv-word {{ font-size:30px; font-weight:800; letter-spacing:3px; color:#fff; line-height:1; }}
+            box-shadow: 0 10px 30px rgba(24,36,46,0.22);
+            border-bottom: 3px solid {C['vermelho']};
+        }}
+        .mnv-word {{
+            font-family:'Archivo', sans-serif; font-size:30px; font-weight:900;
+            letter-spacing:2px; color:#fff; line-height:1;
+        }}
         .mnv-word .dot {{ color: {C['vermelho']}; }}
-        .mnv-sub {{ font-size:12px; letter-spacing:4px; color:{C['vermelho_claro']}; margin-top:4px; }}
-        .mnv-badge {{ background:{C['vermelho']}; color:#fff; font-weight:700; font-size:13px;
-                      padding:6px 14px; border-radius:20px; letter-spacing:1px; }}
-        .mnv-tag {{ color:#cbd5e1; font-size:12px; text-align:right; margin-top:8px; }}
-        .mnv-card {{ background:#fff; border-radius:14px; padding:16px 18px;
-                     border:1px solid {C['cinza_borda']}; border-top:4px solid {C['vermelho']};
-                     box-shadow:0 2px 8px rgba(43,61,74,0.06); height:100%; }}
-        .mnv-card .lbl {{ font-size:12px; color:{C['cinza']}; text-transform:uppercase; letter-spacing:.5px; }}
-        .mnv-card .val {{ font-size:26px; font-weight:800; color:{C['grafite']}; margin:4px 0; }}
-        .mnv-card .dlt-pos {{ color:{C['verde']}; font-size:13px; font-weight:600; }}
-        .mnv-card .dlt-neg {{ color:{C['vermelho_risco']}; font-size:13px; font-weight:600; }}
-        .mnv-card .dlt-neu {{ color:{C['cinza']}; font-size:13px; font-weight:600; }}
-        .mnv-insight {{ background:#fff; border-left:5px solid {C['vermelho']};
-                        border-radius:0 10px 10px 0; padding:14px 18px; margin:8px 0;
-                        box-shadow:0 2px 8px rgba(43,61,74,0.05); }}
+        .mnv-sub {{
+            font-size:11px; letter-spacing:5px; color:#9FB2C0;
+            margin-top:7px; font-weight:600; text-transform:uppercase;
+        }}
+        .mnv-badge {{
+            background:{C['vermelho']}; color:#fff; font-weight:800; font-size:13px;
+            font-family:'Archivo', sans-serif;
+            padding:7px 16px; border-radius:8px; letter-spacing:1.5px;
+        }}
+        .mnv-tag {{ color:#9FB2C0; font-size:12px; text-align:right; margin-top:10px; line-height:1.6; }}
+
+        /* ---------- Cartões KPI ---------- */
+        .mnv-card {{
+            background:#fff; border-radius:16px; padding:18px 20px;
+            border:1px solid {C['cinza_borda']};
+            box-shadow: 0 1px 3px rgba(31,45,56,0.05);
+            height:100%; position:relative; overflow:hidden;
+            transition: box-shadow .18s ease, transform .18s ease;
+        }}
+        .mnv-card::before {{
+            content:""; position:absolute; top:0; left:0; right:0; height:3px;
+            background:{C['vermelho']};
+        }}
+        .mnv-card:hover {{
+            box-shadow: 0 8px 22px rgba(31,45,56,0.12);
+            transform: translateY(-2px);
+        }}
+        .mnv-card .lbl {{
+            font-size:11px; color:{C['cinza']}; text-transform:uppercase;
+            letter-spacing:1px; font-weight:600;
+        }}
+        .mnv-card .val {{
+            font-family:'Archivo', sans-serif; font-variant-numeric: tabular-nums;
+            font-size:27px; font-weight:800; color:{C['grafite']}; margin:6px 0 4px;
+        }}
+        .mnv-card .dlt-pos {{ color:{C['verde']}; font-size:12.5px; font-weight:700; }}
+        .mnv-card .dlt-neg {{ color:{C['vermelho_risco']}; font-size:12.5px; font-weight:700; }}
+        .mnv-card .dlt-neu {{ color:{C['cinza']}; font-size:12.5px; font-weight:600; }}
+
+        /* ---------- Blocos de insight ---------- */
+        .mnv-insight {{
+            background:#fff; border-left:4px solid {C['vermelho']};
+            border-radius:12px; padding:16px 20px; margin:10px 0;
+            border-top:1px solid {C['cinza_borda']};
+            border-right:1px solid {C['cinza_borda']};
+            border-bottom:1px solid {C['cinza_borda']};
+            box-shadow:0 1px 3px rgba(31,45,56,0.05);
+        }}
         .mnv-insight.good {{ border-left-color:{C['verde']}; }}
         .mnv-insight.warn {{ border-left-color:{C['ambar']}; }}
         .mnv-insight.bad  {{ border-left-color:{C['vermelho_risco']}; }}
-        .mnv-pill {{ display:inline-block; font-size:11px; font-weight:700; padding:2px 9px;
-                     border-radius:12px; color:#fff; margin-right:8px; vertical-align:middle; }}
+        .mnv-pill {{
+            display:inline-block; font-size:10px; font-weight:800; padding:3px 10px;
+            border-radius:6px; color:#fff; margin-right:10px; vertical-align:middle;
+            letter-spacing:1px; font-family:'Archivo', sans-serif;
+        }}
+
+        /* ---------- Gráficos e tabelas como cartões ---------- */
+        [data-testid="stPlotlyChart"] {{
+            background:#fff; border-radius:16px; padding:10px 8px 4px;
+            border:1px solid {C['cinza_borda']};
+            box-shadow: 0 1px 3px rgba(31,45,56,0.05);
+        }}
+        [data-testid="stDataFrame"] {{
+            border-radius:14px; overflow:hidden;
+            border:1px solid {C['cinza_borda']};
+            box-shadow: 0 1px 3px rgba(31,45,56,0.05);
+        }}
+
+        /* ---------- Alertas nativos refinados ---------- */
+        [data-testid="stAlert"] {{ border-radius:12px; }}
     </style>
     """
 
@@ -109,13 +228,14 @@ def header_html(razao: str, setor: str, periodo: str) -> str:
 
 def layout_base(titulo: str = "", altura: int = 420) -> dict:
     return dict(
-        title=dict(text=titulo, font=dict(size=17, color=C["grafite"], family="Arial"), x=0.01, xanchor="left"),
+        title=dict(text=titulo, font=dict(size=16, color=C["grafite"], family="Archivo, Arial"),
+                   x=0.01, xanchor="left"),
         height=altura, plot_bgcolor="white", paper_bgcolor="white",
-        font=dict(color=C["grafite"], family="Arial"),
+        font=dict(color=C["grafite"], family="Inter, Arial", size=12),
         margin=dict(t=64, b=48, l=56, r=28),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
                     bgcolor="rgba(0,0,0,0)", font=dict(size=12)),
-        hoverlabel=dict(bgcolor=C["grafite"], font=dict(color="white")),
+        hoverlabel=dict(bgcolor=C["grafite"], font=dict(color="white", family="Inter, Arial")),
     )
 
 
@@ -387,9 +507,12 @@ def fig_liquidez(df):
             "IND_LIQUIDEZ_SECA": C["ambar"], "IND_LIQUIDEZ_IMEDIATA": C["grafite_claro"]}
     for chave, cor in mapa.items():
         s = serie(df, chave)
-        fig.add_trace(go.Scatter(x=[str(a) for a in s.index], y=s.values, mode="lines+markers",
+        fig.add_trace(go.Scatter(x=[str(a) for a in s.index], y=s.values, mode="lines+markers+text",
                                  name=INDICADORES[chave]["label"], line=dict(color=cor, width=3),
-                                 marker=dict(size=7), hovertemplate="%{y:.2f}×<extra></extra>"))
+                                 marker=dict(size=7),
+                                 text=[_br(v, 2) + "×" if pd.notna(v) else "" for v in s.values],
+                                 textposition="top center", textfont=dict(size=10, color=cor),
+                                 hovertemplate="%{y:.2f}×<extra></extra>"))
     fig.add_hline(y=1.5, line=dict(color=C["verde"], width=1.4, dash="dash"),
                   annotation_text="Confortável (1,5×)", annotation_position="top left")
     fig.add_hline(y=1.0, line=dict(color=C["ambar"], width=1.4, dash="dot"),
@@ -407,6 +530,8 @@ def fig_endividamento(df):
         s = serie(df, chave)
         fig.add_trace(go.Bar(x=[str(a) for a in s.index], y=(s.values * 100),
                              name=INDICADORES[chave]["label"], marker_color=cor,
+                             text=[_br(v * 100, 1) + "%" if pd.notna(v) else "" for v in s.values],
+                             textposition="outside", textfont=dict(size=10), cliponaxis=False,
                              hovertemplate="%{y:.1f}%<extra></extra>"))
     fig.update_layout(**layout_base("Estrutura de Capital e Endividamento (%)"), barmode="group")
     fig.update_xaxes(type="category", gridcolor=C["cinza_borda"])
@@ -419,13 +544,17 @@ def fig_margens_rentab(df):
     for chave, cor in [("IND_MARGEM_BRUTA", C["grafite"]), ("IND_MARGEM_OPERACIONAL", C["ambar"]),
                        ("IND_MARGEM_LIQUIDA", C["vermelho"])]:
         s = serie(df, chave)
-        fig.add_trace(go.Scatter(x=[str(a) for a in s.index], y=s.values * 100, mode="lines+markers",
+        fig.add_trace(go.Scatter(x=[str(a) for a in s.index], y=s.values * 100, mode="lines+markers+text",
                                  name=INDICADORES[chave]["label"], line=dict(color=cor, width=3),
+                                 text=[_br(v * 100, 1) + "%" if pd.notna(v) else "" for v in s.values],
+                                 textposition="top center", textfont=dict(size=9, color=cor),
                                  hovertemplate="%{y:.1f}%<extra></extra>"), row=1, col=1)
     for chave, cor in [("IND_ROA", C["grafite"]), ("IND_ROE", C["vermelho"]), ("IND_ROI", C["ambar"])]:
         s = serie(df, chave)
-        fig.add_trace(go.Scatter(x=[str(a) for a in s.index], y=s.values * 100, mode="lines+markers",
+        fig.add_trace(go.Scatter(x=[str(a) for a in s.index], y=s.values * 100, mode="lines+markers+text",
                                  name=INDICADORES[chave]["label"], line=dict(color=cor, width=3),
+                                 text=[_br(v * 100, 1) + "%" if pd.notna(v) else "" for v in s.values],
+                                 textposition="top center", textfont=dict(size=9, color=cor),
                                  hovertemplate="%{y:.1f}%<extra></extra>"), row=1, col=2)
     fig.update_layout(**layout_base("", altura=440))
     fig.update_xaxes(type="category", gridcolor=C["cinza_borda"])
@@ -457,11 +586,17 @@ def fig_fleuriet(df):
     for chave, cor in [("IND_CGL", C["grafite"]), ("IND_NCG", C["ambar"])]:
         s = serie(df, chave)
         fig.add_trace(go.Bar(x=[str(a) for a in s.index], y=s.values / 1e9, name=INDICADORES[chave]["label"],
-                             marker_color=cor, hovertemplate="R$ %{y:.2f} bi<extra></extra>"))
+                             marker_color=cor,
+                             text=[_br(v / 1e9, 2) if pd.notna(v) else "" for v in s.values],
+                             textposition="outside", textfont=dict(size=9), cliponaxis=False,
+                             hovertemplate="R$ %{y:.2f} bi<extra></extra>"))
     s_st = serie(df, "IND_ST")
-    fig.add_trace(go.Scatter(x=[str(a) for a in s_st.index], y=s_st.values / 1e9, mode="lines+markers",
+    fig.add_trace(go.Scatter(x=[str(a) for a in s_st.index], y=s_st.values / 1e9, mode="lines+markers+text",
                              name="Saldo de Tesouraria", line=dict(color=C["vermelho"], width=3.5),
-                             marker=dict(size=9), hovertemplate="ST: R$ %{y:.2f} bi<extra></extra>"))
+                             marker=dict(size=9),
+                             text=[_br(v / 1e9, 2) if pd.notna(v) else "" for v in s_st.values],
+                             textposition="bottom center", textfont=dict(size=10, color=C["vermelho"]),
+                             hovertemplate="ST: R$ %{y:.2f} bi<extra></extra>"))
     fig.update_layout(**layout_base("Modelo Fleuriet — CGL, NCG e Tesouraria (R$ bi)"), barmode="group")
     fig.update_xaxes(type="category", gridcolor=C["cinza_borda"])
     fig.update_yaxes(ticksuffix=" bi", gridcolor=C["cinza_borda"], zeroline=True, zerolinecolor=C["grafite"])
@@ -776,10 +911,19 @@ def main():
         st.caption("BEEF3 · Big Data for Finance")
         st.markdown("---")
         st.header("Período")
-        anos_sel = st.multiselect("Anos:", options=anos_disp,
-                                  default=anos_disp[-6:] if len(anos_disp) > 6 else anos_disp)
+        ano_min, ano_max = int(min(anos_disp)), int(max(anos_disp))
+        if ano_min == ano_max:
+            # Só existe um ano disponível: slider não faz sentido, usa o único ano
+            anos_sel = [ano_min]
+            st.caption(f"Único ano disponível: {ano_min}")
+        else:
+            # Intervalo padrão: últimos 6 anos (ou todos, se houver menos)
+            default_ini = anos_disp[-6] if len(anos_disp) > 6 else ano_min
+            faixa = st.slider("Intervalo de anos:", min_value=ano_min, max_value=ano_max,
+                              value=(int(default_ini), ano_max), step=1)
+            anos_sel = [a for a in anos_disp if faixa[0] <= a <= faixa[1]]
     if not anos_sel:
-        st.info("Selecione ao menos um ano na barra lateral.")
+        st.info("Nenhum ano no intervalo selecionado.")
         st.stop()
 
     df = df_full[df_full["ANO"].isin(anos_sel)].sort_values("ANO").reset_index(drop=True)
