@@ -23,6 +23,8 @@
 #     DATABASE_URL = "postgresql://user:senha@host:5432/dbname"
 # ==============================================================================
 import os
+import re
+import textwrap
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -39,14 +41,77 @@ except ImportError:
     _DOTENV_OK = False
 
 # ==============================================================================
-# 0. IDENTIDADE VISUAL — MINERVA FOODS
+# 0. IDENTIDADE VISUAL — DOMO CONSULTORIA
 # ==============================================================================
-C = {
-    "vermelho": "#E2334D", "vermelho_escuro": "#B5243A", "vermelho_claro": "#F5ADB6",
-    "grafite": "#1F2D38", "grafite_claro": "#41566A", "creme": "#F4F6F8",
-    "cinza": "#64748B", "cinza_borda": "#E2E8F0",
-    "verde": "#15803D", "ambar": "#B45309", "vermelho_risco": "#B91C1C",
+# Paleta-base (azul-petróleo / cinzas), usada nos dois temas.
+PALETA = {
+    "ink":       "#0d1b2a",   # ink-black
+    "prussian":  "#1b263b",   # prussian-blue
+    "dusk":      "#415a77",   # dusk-blue
+    "denim":     "#778da9",   # dusty-denim
+    "alabaster": "#e0e1dd",   # alabaster-grey
 }
+
+# Cores semânticas do diagnóstico (favorável / atenção / risco) — legíveis nos 2 temas.
+SEMANTICAS = {"good": "#2f9e6f", "warn": "#c9913a", "bad": "#d05a5a"}
+
+
+def _html(s: str) -> str:
+    """Remove a indentação do bloco HTML/CSS.
+
+    Sem isso, o Streamlit interpreta linhas indentadas (4+ espaços) como bloco de
+    código Markdown e mostra o HTML cru na tela — era a origem do "código no topo".
+    """
+    return textwrap.dedent(s).strip()
+
+
+def build_theme(mode: str) -> dict:
+    """Resolve as cores conforme o tema escolhido (light/dark)."""
+    p = PALETA
+    if mode == "dark":
+        T = {
+            "mode": "dark",
+            "bg": p["ink"], "surface": "#15233a", "surface_2": p["prussian"],
+            "text": p["alabaster"], "text_soft": "#aab6c6", "muted": p["denim"],
+            "border": "rgba(224,225,221,0.14)", "border_strong": "rgba(224,225,221,0.24)",
+            "accent": p["denim"], "accent_2": "#9db0c6",
+            "shadow": "0 10px 30px rgba(0,0,0,0.45)", "grid": "rgba(224,225,221,0.10)",
+            "chart_bg": "#15233a",
+        }
+    else:
+        T = {
+            "mode": "light",
+            "bg": "#f3f4f1", "surface": "#ffffff", "surface_2": "#f7f8f6",
+            "text": p["ink"], "text_soft": p["dusk"], "muted": p["denim"],
+            "border": "rgba(13,27,42,0.10)", "border_strong": "rgba(13,27,42,0.16)",
+            "accent": p["dusk"], "accent_2": p["prussian"],
+            "shadow": "0 10px 30px rgba(27,38,59,0.10)", "grid": "rgba(13,27,42,0.08)",
+            "chart_bg": "#ffffff",
+        }
+    T.update(SEMANTICAS)
+    return T
+
+
+def build_colors(T: dict) -> dict:
+    """Chaves legadas usadas pelos gráficos Plotly, agora dependentes do tema."""
+    return {
+        "grafite":       T["text"],
+        "grafite_claro": T["accent_2"],
+        "vermelho":      T["accent"],
+        "vermelho_escuro": T["accent_2"],
+        "vermelho_claro":  T["muted"],
+        "ambar":  T["warn"],
+        "verde":  T["good"],
+        "vermelho_risco": T["bad"],
+        "creme":  T["surface_2"],
+        "cinza":  T["muted"],
+        "cinza_borda": T["border"],
+    }
+
+
+# Globais reatribuídos em main() conforme o tema escolhido.
+TH = build_theme("light")
+C = build_colors(TH)
 
 GOLD_TABLE = "layer_03_gold.mart_indicadores_financeiros"
 MINERVA_CNPJ = "67.620.377/0001-14"
@@ -56,186 +121,225 @@ SILVER_DRE = "layer_02_silver.n1_dfp_cia_aberta_dre"
 SILVER_DFC = "layer_02_silver.n1_dfp_cia_aberta_dfc"
 
 
-def css_minerva() -> str:
-    return f"""
+FONT_SANS = "'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONT_SERIF = "'Source Serif 4', Georgia, 'Times New Roman', serif"
+
+
+def build_css(T: dict) -> str:
+    """CSS completo e dependente do tema. Fonte estilo claude.ai (grotesca + serifada)."""
+    return _html(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
+
+        :root {{
+            --bg: {T['bg']}; --surface: {T['surface']}; --surface-2: {T['surface_2']};
+            --text: {T['text']}; --text-soft: {T['text_soft']}; --muted: {T['muted']};
+            --border: {T['border']}; --border-strong: {T['border_strong']};
+            --accent: {T['accent']}; --accent-2: {T['accent_2']};
+            --good: {T['good']}; --warn: {T['warn']}; --bad: {T['bad']};
+            --shadow: {T['shadow']};
+        }}
 
         /* ---------- Base ---------- */
-        html, body, .stApp, [class*="css"] {{
-            font-family: 'Inter', -apple-system, sans-serif;
+        html, body, .stApp, [class*="css"] {{ font-family: {FONT_SANS}; }}
+        .stApp {{ background: var(--bg); color: var(--text); }}
+        .block-container {{ padding-top: 1.6rem; max-width: 1240px; }}
+        h1, h2, h3, h4, h5 {{
+            font-family: {FONT_SANS}; color: var(--text);
+            font-weight: 700; letter-spacing: -0.015em;
         }}
-        .stApp {{ background: {C['creme']}; }}
-        .block-container {{ padding-top: 1.4rem; max-width: 1280px; }}
-        h1,h2,h3,h4 {{
-            font-family: 'Archivo', sans-serif; color: {C['grafite']};
-            font-weight: 800; letter-spacing: -0.02em;
-        }}
-        p, li, span, label {{ color: {C['grafite']}; }}
-        [data-testid="stCaptionContainer"], .stCaption, small {{ color: {C['cinza']} !important; }}
-        hr {{ border-color: {C['cinza_borda']}; }}
+        p, li, span, label, div {{ color: var(--text); }}
+        [data-testid="stCaptionContainer"], .stCaption, small {{ color: var(--text-soft) !important; }}
+        hr {{ border-color: var(--border); }}
+        a {{ color: var(--accent); }}
+        ::selection {{ background: var(--accent); color: #fff; }}
 
-        /* ---------- Abas (correção do texto invisível + segmented control) ---------- */
+        /* ---------- Cabeçalho Domo ---------- */
+        .domo-top {{
+            display: flex; align-items: stretch; gap: 22px; flex-wrap: wrap;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 18px; padding: 20px 26px; margin-bottom: 18px;
+            box-shadow: var(--shadow);
+        }}
+        .domo-brand {{ display: flex; align-items: center; gap: 14px; min-width: 0; }}
+        .domo-logo {{
+            width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+            display: grid; place-items: center;
+            background: var(--text); color: var(--surface);
+            font-weight: 800; font-size: 20px; letter-spacing: -1px;
+        }}
+        .domo-name {{
+            font-size: 20px; font-weight: 800; color: var(--text);
+            letter-spacing: -0.02em; line-height: 1.05;
+        }}
+        .domo-tagline {{
+            font-size: 11px; color: var(--muted); font-weight: 600;
+            text-transform: uppercase; letter-spacing: 2px; margin-top: 3px;
+        }}
+        .domo-sep {{ width: 1px; background: var(--border); align-self: stretch; }}
+        .domo-target {{ display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; }}
+        .domo-target-lbl {{
+            font-size: 10.5px; color: var(--muted); font-weight: 700;
+            text-transform: uppercase; letter-spacing: 2px;
+        }}
+        .domo-target-name {{
+            font-size: clamp(18px, 2.4vw, 26px); font-weight: 800; color: var(--text);
+            letter-spacing: -0.02em; line-height: 1.15; margin-top: 2px;
+            overflow-wrap: anywhere; word-break: break-word;
+        }}
+        .domo-target-meta {{ font-size: 13px; color: var(--text-soft); margin-top: 3px; font-weight: 500; }}
+
+        /* ---------- Sidebar ---------- */
+        [data-testid="stSidebar"] {{ background: var(--surface); border-right: 1px solid var(--border); }}
+        [data-testid="stSidebar"] * {{ color: var(--text); }}
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: var(--text); }}
+        [data-testid="stSidebar"] [data-testid="stCaptionContainer"], [data-testid="stSidebar"] small {{ color: var(--muted) !important; }}
+        [data-testid="stSidebar"] hr {{ border-color: var(--border); }}
+
+        /* ---------- Inputs / selects ---------- */
+        [data-baseweb="input"] input, [data-baseweb="select"] > div, .stTextInput input {{
+            background: var(--surface-2) !important; color: var(--text) !important;
+            border-color: var(--border) !important; border-radius: 10px !important;
+        }}
+        [data-baseweb="popover"], [role="listbox"], [data-baseweb="menu"] {{
+            background: var(--surface) !important; color: var(--text) !important;
+        }}
+        [role="option"] {{ color: var(--text) !important; }}
+        [role="option"]:hover {{ background: var(--surface-2) !important; }}
+
+        /* ---------- Abas ---------- */
         .stTabs [data-baseweb="tab-list"] {{
-            gap: 4px; background: #FFFFFF; padding: 6px;
-            border-radius: 14px; border: 1px solid {C['cinza_borda']};
-            box-shadow: 0 1px 3px rgba(31,45,56,0.06);
-            flex-wrap: wrap;
+            gap: 4px; background: var(--surface); padding: 6px;
+            border-radius: 14px; border: 1px solid var(--border);
+            box-shadow: var(--shadow); flex-wrap: wrap;
         }}
         .stTabs [data-baseweb="tab"] {{
-            height: 40px; border-radius: 9px; padding: 0 14px;
+            height: 38px; border-radius: 9px; padding: 0 14px;
             background: transparent; border: none;
         }}
         .stTabs [data-baseweb="tab"] p {{
             font-size: 13.5px !important; font-weight: 600;
-            color: {C['grafite_claro']} !important;       /* sempre legível */
-            font-family: 'Inter', sans-serif;
+            color: var(--text-soft) !important; font-family: {FONT_SANS};
         }}
-        .stTabs [data-baseweb="tab"]:hover {{ background: {C['creme']}; }}
-        .stTabs [aria-selected="true"] {{
-            background: {C['grafite']} !important;
-            box-shadow: 0 2px 6px rgba(31,45,56,0.25);
-        }}
-        .stTabs [aria-selected="true"] p {{ color: #FFFFFF !important; }}
-        .stTabs [data-baseweb="tab-highlight"],
-        .stTabs [data-baseweb="tab-border"] {{ display: none; }}
-
-        /* ---------- Sidebar escura ---------- */
-        [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #18242E 0%, {C['grafite']} 100%);
-            border-right: none;
-        }}
-        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3 {{ color: #FFFFFF; }}
-        [data-testid="stSidebar"] p, [data-testid="stSidebar"] span,
-        [data-testid="stSidebar"] label, [data-testid="stSidebar"] small,
-        [data-testid="stSidebar"] [data-testid="stCaptionContainer"] {{
-            color: #C7D2DC !important;
-        }}
-        [data-testid="stSidebar"] hr {{ border-color: rgba(255,255,255,0.12); }}
-        [data-testid="stSidebar"] [data-testid="stSliderTickBarMin"],
-        [data-testid="stSidebar"] [data-testid="stSliderTickBarMax"],
-        [data-testid="stSidebar"] [data-testid="stSliderThumbValue"] {{
-            color: #FFFFFF !important; font-weight: 600;
-        }}
-        [data-testid="stSidebar"] div[role="slider"] {{
-            background: {C['vermelho']} !important;
-            box-shadow: 0 0 0 4px rgba(226,51,77,0.25);
-        }}
-
-        /* ---------- Topbar ---------- */
-        .mnv-topbar {{
-            background: linear-gradient(120deg, #18242E 0%, {C['grafite']} 55%, {C['grafite_claro']} 130%);
-            border-radius: 18px; padding: 26px 32px; margin-bottom: 14px;
-            display:flex; align-items:center; justify-content:space-between;
-            box-shadow: 0 10px 30px rgba(24,36,46,0.22);
-            border-bottom: 3px solid {C['vermelho']};
-        }}
-        .mnv-word {{
-            font-family:'Archivo', sans-serif; font-size:30px; font-weight:900;
-            letter-spacing:2px; color:#fff; line-height:1;
-        }}
-        .mnv-word .dot {{ color: {C['vermelho']}; }}
-        .mnv-sub {{
-            font-size:11px; letter-spacing:5px; color:#9FB2C0;
-            margin-top:7px; font-weight:600; text-transform:uppercase;
-        }}
-        .mnv-badge {{
-            background:{C['vermelho']}; color:#fff; font-weight:800; font-size:13px;
-            font-family:'Archivo', sans-serif;
-            padding:7px 16px; border-radius:8px; letter-spacing:1.5px;
-        }}
-        .mnv-tag {{ color:#9FB2C0; font-size:12px; text-align:right; margin-top:10px; line-height:1.6; }}
+        .stTabs [data-baseweb="tab"]:hover {{ background: var(--surface-2); }}
+        .stTabs [aria-selected="true"] {{ background: var(--text) !important; }}
+        .stTabs [aria-selected="true"] p {{ color: var(--surface) !important; }}
+        .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {{ display: none; }}
 
         /* ---------- Cartões KPI ---------- */
-        .mnv-card {{
-            background:#fff; border-radius:16px; padding:18px 20px;
-            border:1px solid {C['cinza_borda']};
-            box-shadow: 0 1px 3px rgba(31,45,56,0.05);
-            height:100%; position:relative; overflow:hidden;
-            transition: box-shadow .18s ease, transform .18s ease;
+        .d-card {{
+            background: var(--surface); border-radius: 16px; padding: 18px 20px;
+            border: 1px solid var(--border); box-shadow: var(--shadow);
+            height: 100%; transition: transform .16s ease, box-shadow .16s ease;
         }}
-        .mnv-card::before {{
-            content:""; position:absolute; top:0; left:0; right:0; height:3px;
-            background:{C['vermelho']};
+        .d-card:hover {{ transform: translateY(-2px); }}
+        .d-card .lbl {{
+            font-size: 11px; color: var(--muted); text-transform: uppercase;
+            letter-spacing: 1px; font-weight: 700;
         }}
-        .mnv-card:hover {{
-            box-shadow: 0 8px 22px rgba(31,45,56,0.12);
-            transform: translateY(-2px);
+        .d-card .val {{
+            font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 800;
+            color: var(--text); margin: 8px 0 4px; letter-spacing: -0.02em;
         }}
-        .mnv-card .lbl {{
-            font-size:11px; color:{C['cinza']}; text-transform:uppercase;
-            letter-spacing:1px; font-weight:600;
-        }}
-        .mnv-card .val {{
-            font-family:'Archivo', sans-serif; font-variant-numeric: tabular-nums;
-            font-size:27px; font-weight:800; color:{C['grafite']}; margin:6px 0 4px;
-        }}
-        .mnv-card .dlt-pos {{ color:{C['verde']}; font-size:12.5px; font-weight:700; }}
-        .mnv-card .dlt-neg {{ color:{C['vermelho_risco']}; font-size:12.5px; font-weight:700; }}
-        .mnv-card .dlt-neu {{ color:{C['cinza']}; font-size:12.5px; font-weight:600; }}
+        .d-card .dlt-pos {{ color: var(--good); font-size: 12.5px; font-weight: 700; }}
+        .d-card .dlt-neg {{ color: var(--bad); font-size: 12.5px; font-weight: 700; }}
+        .d-card .dlt-neu {{ color: var(--muted); font-size: 12.5px; font-weight: 600; }}
 
-        /* ---------- Blocos de insight ---------- */
-        .mnv-insight {{
-            background:#fff; border-left:4px solid {C['vermelho']};
-            border-radius:12px; padding:16px 20px; margin:10px 0;
-            border-top:1px solid {C['cinza_borda']};
-            border-right:1px solid {C['cinza_borda']};
-            border-bottom:1px solid {C['cinza_borda']};
-            box-shadow:0 1px 3px rgba(31,45,56,0.05);
+        /* ---------- ANÁLISES AUTOMÁTICAS (em destaque) ---------- */
+        .analise-label {{
+            display: flex; align-items: center; gap: 10px;
+            font-size: 12px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 2px; color: var(--muted); margin: 18px 0 10px;
         }}
-        .mnv-insight.good {{ border-left-color:{C['verde']}; }}
-        .mnv-insight.warn {{ border-left-color:{C['ambar']}; }}
-        .mnv-insight.bad  {{ border-left-color:{C['vermelho_risco']}; }}
-        .mnv-pill {{
-            display:inline-block; font-size:10px; font-weight:800; padding:3px 10px;
-            border-radius:6px; color:#fff; margin-right:10px; vertical-align:middle;
-            letter-spacing:1px; font-family:'Archivo', sans-serif;
+        .analise-label::after {{ content: ""; flex: 1; height: 1px; background: var(--border); }}
+        .insight {{
+            background: var(--surface); border: 1px solid var(--border);
+            border-left: 4px solid var(--c, var(--accent));
+            border-radius: 14px; padding: 18px 22px; margin: 12px 0;
+            box-shadow: var(--shadow);
+        }}
+        .insight-head {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+        .insight-dot {{ width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--accent)); flex-shrink: 0; }}
+        .insight-tag {{
+            font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px;
+            color: var(--c, var(--accent)); border: 1px solid var(--c, var(--accent));
+            padding: 2px 9px; border-radius: 6px;
+        }}
+        .insight-title {{ font-size: 15.5px; font-weight: 700; color: var(--text); }}
+        .insight-body {{
+            font-family: {FONT_SERIF}; font-size: 16px; line-height: 1.62;
+            color: var(--text-soft); margin: 10px 0 0;
+            overflow-wrap: anywhere;
         }}
 
-        /* ---------- Gráficos e tabelas como cartões ---------- */
+        /* ---------- Gráficos e tabelas ---------- */
         [data-testid="stPlotlyChart"] {{
-            background:#fff; border-radius:16px; padding:10px 8px 4px;
-            border:1px solid {C['cinza_borda']};
-            box-shadow: 0 1px 3px rgba(31,45,56,0.05);
+            background: var(--surface); border-radius: 16px; padding: 10px 8px 4px;
+            border: 1px solid var(--border); box-shadow: var(--shadow);
         }}
         [data-testid="stDataFrame"] {{
-            border-radius:14px; overflow:hidden;
-            border:1px solid {C['cinza_borda']};
-            box-shadow: 0 1px 3px rgba(31,45,56,0.05);
+            border-radius: 14px; overflow: hidden;
+            border: 1px solid var(--border); box-shadow: var(--shadow);
         }}
+        [data-testid="stAlert"] {{ border-radius: 12px; }}
 
-        /* ---------- Alertas nativos refinados ---------- */
-        [data-testid="stAlert"] {{ border-radius:12px; }}
+        /* ---------- Sliders / toggle ---------- */
+        [data-testid="stSidebar"] div[role="slider"] {{
+            background: var(--accent) !important;
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+        }}
     </style>
-    """
+    """)
 
 
-def header_html(razao: str, setor: str, periodo: str) -> str:
-    return f"""
-    <div class="mnv-topbar">
-        <div>
-            <div class="mnv-word">MINERVA<span class="dot">.</span>FOODS</div>
-            <div class="mnv-sub">ANÁLISE DE INDICADORES FINANCEIROS</div>
+def _limpa_nome(razao: str) -> str:
+    """Remove sufixos societários e normaliza maiúsculas (preservando siglas)."""
+    n = (razao or "").strip()
+    n = re.sub(r"\b(S\.?\s*/?\s*A\.?|LTDA\.?|EIRELI|EPP|CIA\.?|COMPANHIA|HOLDING|PARTICIPACOES|PARTICIPAÇÕES)\b",
+               "", n, flags=re.I)
+    n = re.sub(r"\s*\.\s*", " ", n)
+    n = re.sub(r"\s{2,}", " ", n).strip(" .,-/")
+    if not n:
+        return razao or "Empresa"
+    # title inteligente: mantém siglas curtas em maiúsculas (JBS, BRF, CSN), capitaliza o resto
+    palavras = [w if (len(w) <= 3 and w.isupper()) else w.capitalize() for w in n.split()]
+    return " ".join(palavras)
+
+
+def header_html(empresa: str, setor: str, periodo: str) -> str:
+    """Cabeçalho fixo da Domo Consultoria + empresa em análise ao lado."""
+    nome = _limpa_nome(empresa)
+    setor = setor or "Setor não informado"
+    return _html(f"""
+    <div class="domo-top">
+        <div class="domo-brand">
+            <div class="domo-logo">D</div>
+            <div>
+                <div class="domo-name">Domo Consultoria</div>
+                <div class="domo-tagline">Inteligência Financeira</div>
+            </div>
         </div>
-        <div>
-            <span class="mnv-badge">BEEF3</span>
-            <div class="mnv-tag">{razao}<br>{setor} &nbsp;|&nbsp; {periodo}</div>
+        <div class="domo-sep"></div>
+        <div class="domo-target">
+            <div class="domo-target-lbl">Empresa em análise</div>
+            <div class="domo-target-name">{nome}</div>
+            <div class="domo-target-meta">{setor} &nbsp;·&nbsp; {periodo}</div>
         </div>
     </div>
-    """
+    """)
 
 
 def layout_base(titulo: str = "", altura: int = 420) -> dict:
     return dict(
-        title=dict(text=titulo, font=dict(size=16, color=C["grafite"], family="Archivo, Arial"),
+        title=dict(text=titulo, font=dict(size=15, color=TH["text"], family="Hanken Grotesk, Arial"),
                    x=0.01, xanchor="left"),
-        height=altura, plot_bgcolor="white", paper_bgcolor="white",
-        font=dict(color=C["grafite"], family="Inter, Arial", size=12),
+        height=altura, plot_bgcolor=TH["chart_bg"], paper_bgcolor=TH["chart_bg"],
+        font=dict(color=TH["text"], family="Hanken Grotesk, Arial", size=12),
         margin=dict(t=64, b=48, l=56, r=28),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
-                    bgcolor="rgba(0,0,0,0)", font=dict(size=12)),
-        hoverlabel=dict(bgcolor=C["grafite"], font=dict(color="white", family="Inter, Arial")),
+                    bgcolor="rgba(0,0,0,0)", font=dict(size=12, color=TH["text_soft"])),
+        hoverlabel=dict(bgcolor=TH["surface_2"], bordercolor=TH["border"],
+                        font=dict(color=TH["text"], family="Hanken Grotesk, Arial")),
     )
 
 
@@ -391,7 +495,65 @@ def detecta_efeito_tesoura(df):
 # ==============================================================================
 # 5. DIAGNÓSTICO EXECUTIVO
 # ==============================================================================
-def gerar_diagnostico(df):
+def contexto_setor(setor: str) -> dict:
+    """Devolve as frases de contexto setorial usadas no diagnóstico.
+
+    O diagnóstico em si é dirigido pelos NÚMEROS (as classificações good/warn/bad
+    valem para qualquer empresa). Aqui ficam apenas as frases de "tempero" que
+    dependem do setor. Há um padrão genérico (serve para qualquer empresa) e
+    overrides por setor. Para adicionar um setor novo, basta criar mais um bloco
+    `if`/`elif` abaixo — nenhuma IA é necessária.
+    """
+    s = (setor or "").lower()
+
+    # ---- Padrão genérico (qualquer empresa) ----
+    ctx = {
+        "liq_apertada": "cobre o curto prazo, mas com margem apertada.",
+        "endiv_alto":  "É uma estrutura fortemente alavancada, o que amplia o risco financeiro e a exposição a juros.",
+        "endiv_medio": "A dependência de capital de terceiros supera o capital próprio.",
+        "endiv_baixo": "O capital próprio ainda supera o de terceiros — estrutura relativamente conservadora.",
+        "margem_ctx":  "As margens devem ser lidas à luz do setor de atuação e do momento do ciclo econômico.",
+        "margem_baixa_ok": "Margem baixa, mas que pode ser compatível com o modelo de negócio da empresa.",
+        "ciclo_nota":  "",
+    }
+
+    # ---- Frigorífico / proteína animal (Minerva, JBS, Marfrig...) ----
+    if any(k in s for k in ["frigor", "carne", "proteí", "proteina", "abate", "bovin", "aves", "suín", "suin"]):
+        ctx.update({
+            "liq_apertada": "cobre o curto prazo, mas com margem apertada para um frigorífico de ciclo longo.",
+            "endiv_alto":  "É uma estrutura fortemente alavancada — comum em frigoríficos pela necessidade de capital de giro e CAPEX, mas que amplia o risco financeiro.",
+            "endiv_medio": "A dependência de terceiros supera o capital próprio, padrão típico do setor de proteína animal, intensivo em capital.",
+            "endiv_baixo": "O capital próprio ainda supera o de terceiros — estrutura relativamente conservadora para o setor.",
+            "margem_ctx":  "O setor de carne opera estruturalmente com margens estreitas e alta sensibilidade ao ciclo do boi, ao câmbio (forte componente exportador) e ao preço da proteína.",
+            "margem_baixa_ok": "Margem baixa, mas dentro do que se espera para um frigorífico de grande escala.",
+            "ciclo_nota":  " Para frigoríficos, o estoque inclui ativos biológicos, o que tende a alongar o PMRE e o ciclo.",
+        })
+    # ---- Varejo / comércio ----
+    elif any(k in s for k in ["varejo", "comérc", "comerc", "loja", "consumo"]):
+        ctx.update({
+            "margem_ctx":  "O varejo costuma operar com margens líquidas baixas compensadas por alto giro de estoques e de ativos.",
+            "margem_baixa_ok": "Margem baixa é a regra no varejo; o que sustenta o retorno é o giro, não a margem unitária.",
+            "ciclo_nota":  " No varejo, o giro de estoques e o prazo de fornecedores tendem a dominar o ciclo financeiro.",
+        })
+    # ---- Energia / utilities / saneamento ----
+    elif any(k in s for k in ["energia", "elétr", "eletr", "utilit", "saneament", "água", "agua", "gás", "gas"]):
+        ctx.update({
+            "endiv_alto":  "Alavancagem elevada é comum em utilities pela intensidade de CAPEX e pelos contratos de longo prazo; o risco depende da previsibilidade da receita regulada.",
+            "margem_ctx":  "Empresas de infraestrutura/utilities costumam ter margens mais estáveis e previsíveis, ligadas a contratos e regulação.",
+        })
+    # ---- Bancos / serviços financeiros ----
+    elif any(k in s for k in ["banc", "financ", "segur", "crédit", "credit"]):
+        ctx.update({
+            "endiv_alto":  "Em instituições financeiras a alavancagem é parte do modelo de negócio; indicadores de estrutura de capital tradicionais devem ser lidos com cautela.",
+            "margem_ctx":  "Para o setor financeiro, margens e ciclos contábeis tradicionais têm interpretação limitada frente a indicadores próprios do setor.",
+        })
+    # (adicione novos setores aqui conforme necessário)
+    return ctx
+
+
+def gerar_diagnostico(df, ctx=None):
+    if ctx is None:
+        ctx = contexto_setor("")
     ins = []
 
     def add(grupo, nivel, titulo, texto):
@@ -406,7 +568,7 @@ def gerar_diagnostico(df):
         if nv == "good":
             txt = base + " Está acima da referência confortável de 1,5×, indicando folga para honrar obrigações imediatas."
         elif nv == "warn":
-            txt = base + " Situa-se entre 1,0× e 1,5× — cobre o curto prazo, mas com margem apertada para um frigorífico de ciclo longo."
+            txt = base + " Situa-se entre 1,0× e 1,5× — " + ctx["liq_apertada"]
         else:
             txt = base + " Abaixo de 1,0×, sinaliza que o passivo circulante supera o ativo circulante — pressão de caixa relevante."
         if tend != "insuf":
@@ -419,11 +581,11 @@ def gerar_diagnostico(df):
         nv = classificar("IND_PCT_CP", pct_cp)
         txt = f"Em {ano_e}, o capital de terceiros equivale a {fmt_valor(pct_cp,'pct')} do capital próprio. "
         if pct_cp > 2.0:
-            txt += "É uma estrutura fortemente alavancada — comum em frigoríficos pela necessidade de capital de giro e CAPEX, mas que amplia o risco financeiro."
+            txt += ctx["endiv_alto"]
         elif pct_cp > 1.0:
-            txt += "A dependência de terceiros supera o capital próprio, padrão típico do setor de proteína animal, intensivo em capital."
+            txt += ctx["endiv_medio"]
         else:
-            txt += "O capital próprio ainda supera o de terceiros — estrutura relativamente conservadora para o setor."
+            txt += ctx["endiv_baixo"]
         if not np.isnan(comp):
             txt += (f" Da dívida total, {fmt_valor(comp,'pct')} vence no curto prazo"
                     + (" — concentração elevada, que exige liquidez para rolagem." if comp > 0.6
@@ -453,13 +615,11 @@ def gerar_diagnostico(df):
     ano_m, ml = ultimo(df, "IND_MARGEM_LIQUIDA")
     if not np.isnan(ml):
         nv = classificar("IND_MARGEM_LIQUIDA", ml)
-        txt = (f"A margem líquida de {ano_m} é de {fmt_valor(ml,'pct')}. O setor de carne bovina opera "
-               f"estruturalmente com margens estreitas e alta sensibilidade ao ciclo do boi, ao câmbio (forte "
-               f"componente exportador) e ao preço da proteína. ")
+        txt = (f"A margem líquida de {ano_m} é de {fmt_valor(ml,'pct')}. " + ctx["margem_ctx"] + " ")
         if ml < 0:
             txt += "O resultado negativo no período indica que custos e despesas superaram a receita líquida."
         elif ml < 0.05:
-            txt += "Margem baixa, mas dentro do que se espera para um frigorífico de grande escala."
+            txt += ctx["margem_baixa_ok"]
         else:
             txt += "Margem saudável para o padrão do setor."
         add("Margens", nv, "Margem e contexto setorial", txt)
@@ -472,8 +632,7 @@ def gerar_diagnostico(df):
                    f"de pagar fornecedores, situação de autofinanciamento operacional.")
         else:
             txt = (f"O ciclo financeiro de {ano_c} é de {fmt_valor(cf,'dias')} — período em que o caixa fica "
-                   f"comprometido entre pagar fornecedores e receber das vendas. Para frigoríficos, o estoque inclui "
-                   f"ativos biológicos (conta 1.01.07 consolidada ao estoque padrão), o que tende a alongar o PMRE e o ciclo.")
+                   f"comprometido entre pagar fornecedores e receber das vendas." + ctx["ciclo_nota"])
         add("Ciclos", nv, "Ciclo financeiro e capital de giro", txt)
 
     ano_st, st_v = ultimo(df, "IND_ST")
@@ -653,8 +812,32 @@ def get_engine():
     return create_engine(f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}")
 
 
-@st.cache_data(ttl=600)
-def carregar_minerva(cnpj):
+@st.cache_data(ttl=3600, max_entries=1)
+def carregar_catalogo():
+    """Catálogo leve de empresas: 1 linha por empresa (CNPJ, razão, setor).
+
+    Consulta barata e cacheada por bastante tempo — é o que alimenta o seletor
+    lateral. Os dados pesados de cada empresa só são lidos quando ela é
+    selecionada (ver carregar_indicadores / carregar_demonstrativo).
+    """
+    engine = get_engine()
+    q = text(f'''
+        SELECT "CNPJ_CIA",
+               MAX("RAZAO_SOCIAL") AS "RAZAO_SOCIAL",
+               MAX("SETOR")        AS "SETOR"
+        FROM {GOLD_TABLE}
+        GROUP BY "CNPJ_CIA";
+    ''')
+    with engine.connect() as conn:
+        cat = pd.read_sql(q, conn)
+    cat["CNPJ_CIA"] = cat["CNPJ_CIA"].astype(str)
+    cat["RAZAO_SOCIAL"] = cat["RAZAO_SOCIAL"].fillna("(sem razão social)").astype(str)
+    cat["SETOR"] = cat["SETOR"].fillna("Sem setor").astype(str)
+    return cat.sort_values(["SETOR", "RAZAO_SOCIAL"]).reset_index(drop=True)
+
+
+@st.cache_data(ttl=600, max_entries=50)
+def carregar_indicadores(cnpj):
     engine = get_engine()
     q = text(f'SELECT * FROM {GOLD_TABLE} WHERE "CNPJ_CIA" = :cnpj ORDER BY "DT_REFER";')
     with engine.connect() as conn:
@@ -677,7 +860,7 @@ KPIS_DFC = [("Caixa Operacional", "6.01"), ("Caixa de Investimento", "6.02"),
             ("Caixa de Financiamento", "6.03"), ("Variação de Caixa", "6.05")]
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, max_entries=120)
 def carregar_demonstrativo(cnpj, tabela):
     engine = get_engine()
     q = text(f'''SELECT "CD_CONTA","DS_CONTA","DT_REFER","VL_CONTA_TRATADO"
@@ -714,8 +897,12 @@ def _serie_conta(df_long, cd, anos):
 
 
 def _card_simples(label, valor):
-    return f"""<div class="mnv-card"><div class="lbl">{label}</div>
-        <div class="val">{valor}</div></div>"""
+    return _html(f"""
+    <div class="d-card">
+        <div class="lbl">{label}</div>
+        <div class="val">{valor}</div>
+    </div>
+    """)
 
 
 def pivot_demonstrativo(df_long, anos, nivel_max):
@@ -850,22 +1037,36 @@ def aba_demonstrativo(df_long, anos_sel, titulo, tipo):
 def card_kpi(label, valor, delta_txt="—", classe="neu"):
     cls = {"pos": "dlt-pos", "neg": "dlt-neg", "neu": "dlt-neu"}[classe]
     seta = {"pos": "▲", "neg": "▼", "neu": "•"}[classe]
-    return f"""<div class="mnv-card"><div class="lbl">{label}</div>
-        <div class="val">{valor}</div><div class="{cls}">{seta} {delta_txt}</div></div>"""
+    return _html(f"""
+    <div class="d-card">
+        <div class="lbl">{label}</div>
+        <div class="val">{valor}</div>
+        <div class="{cls}">{seta} {delta_txt}</div>
+    </div>
+    """)
 
 
 def bloco_insight(ins):
-    cor = {"good": C["verde"], "warn": C["ambar"], "bad": C["vermelho_risco"], "info": C["grafite_claro"]}[ins["nivel"]]
-    rotulo = {"good": "POSITIVO", "warn": "ATENÇÃO", "bad": "RISCO", "info": "CONTEXTO"}[ins["nivel"]]
-    cls = {"good": "good", "warn": "warn", "bad": "bad", "info": ""}[ins["nivel"]]
-    return f"""<div class="mnv-insight {cls}">
-        <span class="mnv-pill" style="background:{cor}">{rotulo}</span>
-        <b style="color:{C['grafite']}">{ins['titulo']}</b>
-        <div style="margin-top:6px; color:{C['grafite_claro']}; font-size:14px; line-height:1.5">{ins['texto']}</div></div>"""
+    cor = {"good": TH["good"], "warn": TH["warn"], "bad": TH["bad"], "info": TH["accent"]}[ins["nivel"]]
+    rotulo = {"good": "Favorável", "warn": "Atenção", "bad": "Risco", "info": "Contexto"}[ins["nivel"]]
+    return _html(f"""
+    <div class="insight" style="--c:{cor}">
+        <div class="insight-head">
+            <span class="insight-dot"></span>
+            <span class="insight-tag">{rotulo}</span>
+            <span class="insight-title">{ins['titulo']}</span>
+        </div>
+        <p class="insight-body">{ins['texto']}</p>
+    </div>
+    """)
 
 
 def insights_do_grupo(insights, grupo):
-    for ins in [i for i in insights if i["grupo"] == grupo]:
+    grp = [i for i in insights if i["grupo"] == grupo]
+    if not grp:
+        return
+    st.markdown('<div class="analise-label">Análise automática</div>', unsafe_allow_html=True)
+    for ins in grp:
         st.markdown(bloco_insight(ins), unsafe_allow_html=True)
 
 
@@ -873,13 +1074,21 @@ def insights_do_grupo(insights, grupo):
 # 10. APLICAÇÃO PRINCIPAL
 # ==============================================================================
 def main():
-    st.set_page_config(page_title="Minerva Foods | Indicadores", page_icon="🥩",
+    st.set_page_config(page_title="Domo Consultoria | Análise Financeira", page_icon="◆",
                        layout="wide", initial_sidebar_state="expanded")
-    st.markdown(css_minerva(), unsafe_allow_html=True)
 
-    # ---- Carga da camada Gold ----
+    # ---- Tema (claro/escuro) ----
+    global TH, C
+    with st.sidebar:
+        dark = st.toggle("Modo escuro", value=st.session_state.get("dark_mode", False),
+                         key="dark_mode", help="Alterna entre tema claro e escuro")
+    TH = build_theme("dark" if dark else "light")
+    C = build_colors(TH)
+    st.markdown(build_css(TH), unsafe_allow_html=True)
+
+    # ---- Catálogo leve de empresas (1 linha por empresa) ----
     try:
-        df_full = carregar_minerva(MINERVA_CNPJ)
+        catalogo = carregar_catalogo()
     except Exception as e:
         st.error(f"Falha ao conectar/consultar a camada Gold ({GOLD_TABLE}): {e}")
         st.info(
@@ -896,32 +1105,100 @@ def main():
         )
         st.stop()
 
-    if df_full.empty:
-        st.warning(f"Sem indicadores da Minerva (CNPJ {MINERVA_CNPJ}) em {GOLD_TABLE}. "
-                   "Rode o notebook do Gold antes de abrir o dashboard.")
+    if catalogo.empty:
+        st.warning(f"Nenhuma empresa encontrada em {GOLD_TABLE}.")
         st.stop()
 
-    razao = str(df_full["RAZAO_SOCIAL"].dropna().iloc[0]) if df_full.get("RAZAO_SOCIAL") is not None and df_full["RAZAO_SOCIAL"].notna().any() else "MINERVA S.A."
-    setor = str(df_full["SETOR"].dropna().iloc[0]) if df_full.get("SETOR") is not None and df_full["SETOR"].notna().any() else "Alimentos"
+    # =========================================================================
+    # SIDEBAR — SELEÇÃO DE EMPRESA (setor + busca por nome/CNPJ)
+    # =========================================================================
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### Domo Consultoria")
+        st.caption("Análise de indicadores · CVM/DFP")
+        st.markdown("---")
+        st.markdown("#### Empresa")
 
-    # ---- Sidebar ----
+        busca = st.text_input("Buscar", placeholder="Nome ou CNPJ", key="busca_empresa")
+
+        setores = ["Todos os setores"] + sorted(catalogo["SETOR"].dropna().unique().tolist())
+        setor_filtro = st.selectbox("Setor / Categoria", setores, key="setor_filtro")
+
+        # Aplica filtros de setor e busca sobre o catálogo
+        filt = catalogo
+        if setor_filtro != "Todos os setores":
+            filt = filt[filt["SETOR"] == setor_filtro]
+        if busca.strip():
+            termo = busca.strip().lower()
+            digitos = re.sub(r"\D", "", busca)
+            mask = filt["RAZAO_SOCIAL"].str.lower().str.contains(re.escape(termo), na=False)
+            if digitos:
+                cnpj_digitos = filt["CNPJ_CIA"].str.replace(r"\D", "", regex=True)
+                mask = mask | cnpj_digitos.str.contains(digitos, na=False)
+            filt = filt[mask]
+
+        filt = filt.sort_values("RAZAO_SOCIAL").reset_index(drop=True)
+        st.caption(f"{len(filt)} empresa(s) encontrada(s)")
+
+        if filt.empty:
+            st.warning("Nenhuma empresa com esse filtro. Ajuste a busca ou o setor.")
+            st.stop()
+
+        cnpjs = filt["CNPJ_CIA"].tolist()
+        rotulos = {r.CNPJ_CIA: f"{r.RAZAO_SOCIAL}  ·  {r.CNPJ_CIA}" for r in filt.itertuples()}
+
+        # Mantém a empresa anterior se ela continuar na lista; senão usa Minerva; senão a 1ª
+        anterior = st.session_state.get("cnpj_sel")
+        if anterior in cnpjs:
+            idx_default = cnpjs.index(anterior)
+        elif MINERVA_CNPJ in cnpjs:
+            idx_default = cnpjs.index(MINERVA_CNPJ)
+        else:
+            idx_default = 0
+
+        cnpj_sel = st.selectbox("Empresa", cnpjs, index=idx_default,
+                                format_func=lambda c: rotulos.get(c, c))
+        st.session_state["cnpj_sel"] = cnpj_sel
+
+    # ---- Carrega os indicadores SÓ da empresa selecionada ----
+    try:
+        df_full = carregar_indicadores(cnpj_sel)
+    except Exception as e:
+        st.error(f"Falha ao consultar os indicadores da empresa selecionada: {e}")
+        st.stop()
+
+    linha_cat = catalogo[catalogo["CNPJ_CIA"] == cnpj_sel].iloc[0]
+
+    if df_full.empty:
+        st.warning(f"Sem indicadores para {linha_cat['RAZAO_SOCIAL']} (CNPJ {cnpj_sel}) em {GOLD_TABLE}.")
+        st.stop()
+
+    # Prefere os campos da camada Gold; cai para o catálogo se faltar
+    razao = (str(df_full["RAZAO_SOCIAL"].dropna().iloc[0])
+             if df_full.get("RAZAO_SOCIAL") is not None and df_full["RAZAO_SOCIAL"].notna().any()
+             else str(linha_cat["RAZAO_SOCIAL"]))
+    setor = (str(df_full["SETOR"].dropna().iloc[0])
+             if df_full.get("SETOR") is not None and df_full["SETOR"].notna().any()
+             else str(linha_cat["SETOR"]))
+
+    # Contexto setorial (controla as frases do diagnóstico, sem IA)
+    ctx = contexto_setor(setor)
+
+    # ---- Sidebar: período (depende dos anos da empresa carregada) ----
     anos_disp = sorted(df_full["ANO"].unique())
     with st.sidebar:
-        st.title("Minerva Foods")
-        st.caption("BEEF3 · Big Data for Finance")
         st.markdown("---")
-        st.header("Período")
+        st.markdown("#### Período")
         ano_min, ano_max = int(min(anos_disp)), int(max(anos_disp))
         if ano_min == ano_max:
-            # Só existe um ano disponível: slider não faz sentido, usa o único ano
             anos_sel = [ano_min]
             st.caption(f"Único ano disponível: {ano_min}")
         else:
-            # Intervalo padrão: últimos 6 anos (ou todos, se houver menos)
             default_ini = anos_disp[-6] if len(anos_disp) > 6 else ano_min
             faixa = st.slider("Intervalo de anos:", min_value=ano_min, max_value=ano_max,
                               value=(int(default_ini), ano_max), step=1)
             anos_sel = [a for a in anos_disp if faixa[0] <= a <= faixa[1]]
+
     if not anos_sel:
         st.info("Nenhum ano no intervalo selecionado.")
         st.stop()
@@ -930,14 +1207,27 @@ def main():
     periodo = f"{min(anos_sel)}–{max(anos_sel)}" if len(anos_sel) > 1 else str(anos_sel[0])
     st.markdown(header_html(razao, setor, periodo), unsafe_allow_html=True)
 
-    insights = gerar_diagnostico(df)
+    insights = gerar_diagnostico(df, ctx)
 
     # ---- ABAS ----
-    abas = st.tabs(["📊 Visão Geral", "💧 Liquidez", "🏦 Endividamento",
-                    "📈 Margens & Rentab.", "🔄 Atividade & Ciclos", "🔁 Fleuriet", "📋 Tabela",
-                    "🧾 Balanço (BP)", "🧮 DRE", "💵 DFC"])
+    abas = st.tabs(["Balanço (BP)", "DRE", "DFC",
+                    "Visão Geral", "Liquidez", "Endividamento",
+                    "Margens & Rentab.", "Atividade & Ciclos", "Fleuriet", "Tabela"])
 
     with abas[0]:
+        st.caption("Balanço Patrimonial completo e hierárquico, direto da camada Silver.")
+        aba_demonstrativo(_load_silver(cnpj_sel, SILVER_BP), anos_sel,
+                          "Balanço Patrimonial", "BP")
+    with abas[1]:
+        st.caption("Demonstração do Resultado do Exercício (DRE), da receita ao lucro líquido.")
+        aba_demonstrativo(_load_silver(cnpj_sel, SILVER_DRE), anos_sel,
+                          "Demonstração do Resultado (DRE)", "DRE")
+    with abas[2]:
+        st.caption("Demonstração dos Fluxos de Caixa (DFC), por atividade.")
+        aba_demonstrativo(_load_silver(cnpj_sel, SILVER_DFC), anos_sel,
+                          "Demonstração dos Fluxos de Caixa (DFC)", "DFC")
+
+    with abas[3]:
         cur = df.iloc[-1]
         prev = df.iloc[-2] if len(df) >= 2 else None
         ano_cur = int(cur["ANO"])
@@ -967,60 +1257,49 @@ def main():
             if i % 3 == 2 and i != len(kpis) - 1:
                 cols = st.columns(3)
 
-        st.markdown("### 🧠 Diagnóstico executivo")
-        st.caption("Leitura automática cruzando indicadores, tendências e o contexto do setor frigorífico.")
+        st.markdown("### Diagnóstico executivo")
+        st.caption(f"Leitura automática cruzando indicadores, tendências e o contexto do setor: {setor}.")
         if not insights:
             st.info("Dados insuficientes para gerar o diagnóstico.")
+        else:
+            st.markdown('<div class="analise-label">Análise automática</div>', unsafe_allow_html=True)
         for ins in insights:
             st.markdown(bloco_insight(ins), unsafe_allow_html=True)
 
-    with abas[1]:
+    with abas[4]:
         st.plotly_chart(fig_liquidez(df), use_container_width=True)
         insights_do_grupo(insights, "Liquidez")
         st.caption("Quanto maior o índice, maior a folga de pagamento. Referências (1,5× e 1,0×) do racional do projeto.")
 
-    with abas[2]:
+    with abas[5]:
         st.plotly_chart(fig_endividamento(df), use_container_width=True)
         insights_do_grupo(insights, "Endividamento")
         st.caption("Participação de terceiros no ativo, concentração da dívida no curto prazo e imobilização do ativo.")
 
-    with abas[3]:
+    with abas[6]:
         st.plotly_chart(fig_margens_rentab(df), use_container_width=True)
         insights_do_grupo(insights, "Margens")
         insights_do_grupo(insights, "Rentabilidade")
         st.caption("Margens estreitas e voláteis são típicas do setor; ROE acima do ROA evidencia o efeito da alavancagem.")
 
-    with abas[4]:
+    with abas[7]:
         st.plotly_chart(fig_ciclos(df), use_container_width=True)
         insights_do_grupo(insights, "Ciclos")
-        st.caption("PMRE inclui ativos biológicos consolidados ao estoque (premissa do setor de proteína animal).")
+        st.caption("PMRE, PMRV e PMPC compõem os ciclos econômico e financeiro da empresa.")
 
-    with abas[5]:
+    with abas[8]:
         st.plotly_chart(fig_fleuriet(df), use_container_width=True)
         insights_do_grupo(insights, "Fleuriet")
         st.caption("CGL, NCG e Saldo de Tesouraria. ST negativo e decrescente em anos sucessivos = Efeito Tesoura.")
 
-    with abas[6]:
+    with abas[9]:
         st.markdown("#### Indicadores por ano")
         st.dataframe(tabela_indicadores(df), hide_index=True, use_container_width=True,
                      column_config={"Grupo": st.column_config.TextColumn("Grupo", width="small")})
 
-    with abas[7]:
-        st.caption("Balanço Patrimonial completo e hierárquico, direto da camada Silver.")
-        aba_demonstrativo(_load_silver(MINERVA_CNPJ, SILVER_BP), anos_sel,
-                          "Balanço Patrimonial", "BP")
-    with abas[8]:
-        st.caption("Demonstração do Resultado do Exercício (DRE), da receita ao lucro líquido.")
-        aba_demonstrativo(_load_silver(MINERVA_CNPJ, SILVER_DRE), anos_sel,
-                          "Demonstração do Resultado (DRE)", "DRE")
-    with abas[9]:
-        st.caption("Demonstração dos Fluxos de Caixa (DFC), por atividade.")
-        aba_demonstrativo(_load_silver(MINERVA_CNPJ, SILVER_DFC), anos_sel,
-                          "Demonstração dos Fluxos de Caixa (DFC)", "DFC")
-
     st.markdown("---")
     st.caption(f"Fonte: camada Gold (CVM/DFP) — {GOLD_TABLE}. "
-               "Cabeçalho com identidade visual estilizada da Minerva Foods. © Big Data for Finance.")
+               "Domo Consultoria · Análise de indicadores financeiros.")
 
 
 if __name__ == "__main__":
