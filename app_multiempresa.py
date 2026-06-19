@@ -71,22 +71,28 @@ def build_theme(mode: str) -> dict:
     if mode == "dark":
         T = {
             "mode": "dark",
-            "bg": p["ink"], "surface": "#15233a", "surface_2": p["prussian"],
-            "text": p["alabaster"], "text_soft": "#aab6c6", "muted": p["denim"],
-            "border": "rgba(224,225,221,0.14)", "border_strong": "rgba(224,225,221,0.24)",
-            "accent": p["denim"], "accent_2": "#9db0c6",
-            "shadow": "0 10px 30px rgba(0,0,0,0.45)", "grid": "rgba(224,225,221,0.10)",
-            "chart_bg": "#15233a",
+            "bg": "#0a141f", "surface": "rgba(27,38,59,0.74)", "surface_2": "rgba(255,255,255,0.06)",
+            "text": "#e7eaef", "text_soft": "#aeb9c9", "muted": "#8597ad",
+            "border": "rgba(224,225,221,0.12)", "border_strong": "rgba(224,225,221,0.22)",
+            "accent": "#6d9eeb", "accent_2": "#9bbcf0", "cyan": "#56c4e0",
+            "accent_soft": "rgba(109,158,235,0.16)", "accent_line": "rgba(109,158,235,0.42)",
+            "hl": "rgba(255,255,255,0.05)",
+            "glow_a": "rgba(65,90,119,0.40)", "glow_b": "rgba(109,158,235,0.18)", "glow_c": "rgba(86,196,224,0.10)",
+            "shadow": "0 24px 60px -28px rgba(0,0,0,0.65)", "grid": "rgba(224,225,221,0.09)",
+            "chart_bg": "rgba(0,0,0,0)", "solid": "#101d2c",
         }
     else:
         T = {
             "mode": "light",
-            "bg": "#f3f4f1", "surface": "#ffffff", "surface_2": "#f7f8f6",
-            "text": p["ink"], "text_soft": p["dusk"], "muted": p["denim"],
+            "bg": "#eef1f4", "surface": "rgba(255,255,255,0.85)", "surface_2": "rgba(13,27,42,0.045)",
+            "text": "#0d1b2a", "text_soft": "#415a77", "muted": "#5d6e85",
             "border": "rgba(13,27,42,0.10)", "border_strong": "rgba(13,27,42,0.16)",
-            "accent": p["dusk"], "accent_2": p["prussian"],
-            "shadow": "0 10px 30px rgba(27,38,59,0.10)", "grid": "rgba(13,27,42,0.08)",
-            "chart_bg": "#ffffff",
+            "accent": "#2f5fa6", "accent_2": "#415a77", "cyan": "#2b8aa6",
+            "accent_soft": "rgba(47,95,166,0.12)", "accent_line": "rgba(47,95,166,0.32)",
+            "hl": "rgba(255,255,255,0.90)",
+            "glow_a": "rgba(65,90,119,0.14)", "glow_b": "rgba(47,95,166,0.12)", "glow_c": "rgba(43,138,166,0.08)",
+            "shadow": "0 18px 44px -26px rgba(13,27,42,0.22)", "grid": "rgba(13,27,42,0.08)",
+            "chart_bg": "rgba(0,0,0,0)", "solid": "#ffffff",
         }
     T.update(SEMANTICAS)
     return T
@@ -96,7 +102,7 @@ def build_colors(T: dict) -> dict:
     """Chaves legadas usadas pelos gráficos Plotly, agora dependentes do tema."""
     return {
         "grafite":       T["text"],
-        "grafite_claro": T["accent_2"],
+        "grafite_claro": T["cyan"],
         "vermelho":      T["accent"],
         "vermelho_escuro": T["accent_2"],
         "vermelho_claro":  T["muted"],
@@ -105,7 +111,7 @@ def build_colors(T: dict) -> dict:
         "vermelho_risco": T["bad"],
         "creme":  T["surface_2"],
         "cinza":  T["muted"],
-        "cinza_borda": T["border"],
+        "cinza_borda": T["grid"],
     }
 
 
@@ -121,32 +127,46 @@ SILVER_DRE = "layer_02_silver.n1_dfp_cia_aberta_dre"
 SILVER_DFC = "layer_02_silver.n1_dfp_cia_aberta_dfc"
 
 
-FONT_SANS = "'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-FONT_SERIF = "'Source Serif 4', Georgia, 'Times New Roman', serif"
+FONT_SANS = "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+FONT_DISPLAY = "'Space Grotesk', 'Manrope', sans-serif"
+FONT_MONO = "'JetBrains Mono', 'SFMono-Regular', Consolas, monospace"
+FONT_SERIF = FONT_SANS  # mantido por compatibilidade (diagnósticos agora em Manrope)
 
 
 def build_css(T: dict) -> str:
     """CSS completo e dependente do tema. Fonte estilo claude.ai (grotesca + serifada)."""
     return _html(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
         :root {{
             --bg: {T['bg']}; --surface: {T['surface']}; --surface-2: {T['surface_2']};
             --text: {T['text']}; --text-soft: {T['text_soft']}; --muted: {T['muted']};
             --border: {T['border']}; --border-strong: {T['border_strong']};
-            --accent: {T['accent']}; --accent-2: {T['accent_2']};
+            --accent: {T['accent']}; --accent-2: {T['accent_2']}; --cyan: {T['cyan']};
+            --accent-soft: {T['accent_soft']}; --accent-line: {T['accent_line']};
             --good: {T['good']}; --warn: {T['warn']}; --bad: {T['bad']};
-            --shadow: {T['shadow']};
+            --hl: {T['hl']}; --shadow: {T['shadow']}; --solid: {T['solid']};
+            --glow-a: {T['glow_a']}; --glow-b: {T['glow_b']}; --glow-c: {T['glow_c']};
         }}
 
         /* ---------- Base ---------- */
         html, body, .stApp, [class*="css"] {{ font-family: {FONT_SANS}; }}
-        .stApp {{ background: var(--bg); color: var(--text); }}
-        .block-container {{ padding-top: 1.6rem; max-width: 1240px; }}
+        .stApp {{
+            background:
+                radial-gradient(46vw 46vw at -4% -8%, var(--glow-a), transparent 66%),
+                radial-gradient(52vw 52vw at 104% 112%, var(--glow-b), transparent 66%),
+                radial-gradient(34vw 34vw at 80% 28%, var(--glow-c), transparent 70%),
+                var(--bg);
+            background-attachment: fixed;
+            color: var(--text);
+        }}
+        .block-container {{ padding-top: 1.6rem; max-width: 1280px; }}
+        [data-testid="stHorizontalBlock"] {{ gap: 16px !important; margin-bottom: 4px; }}
+        .domo-side {{ display: flex; align-items: center; gap: 12px; margin: 2px 0 6px; }}
         h1, h2, h3, h4, h5 {{
-            font-family: {FONT_SANS}; color: var(--text);
-            font-weight: 700; letter-spacing: -0.015em;
+            font-family: {FONT_DISPLAY}; color: var(--text);
+            font-weight: 700; letter-spacing: -0.02em;
         }}
         p, li, span, label, div {{ color: var(--text); }}
         [data-testid="stCaptionContainer"], .stCaption, small {{ color: var(--text-soft) !important; }}
@@ -156,20 +176,27 @@ def build_css(T: dict) -> str:
 
         /* ---------- Cabeçalho Domo ---------- */
         .domo-top {{
+            position: relative; overflow: hidden;
             display: flex; align-items: stretch; gap: 22px; flex-wrap: wrap;
             background: var(--surface); border: 1px solid var(--border);
-            border-radius: 18px; padding: 20px 26px; margin-bottom: 18px;
-            box-shadow: var(--shadow);
+            border-radius: 22px; padding: 20px 26px; margin-bottom: 18px;
+            box-shadow: var(--shadow), inset 0 1px 0 var(--hl);
+            -webkit-backdrop-filter: blur(26px) saturate(1.5); backdrop-filter: blur(26px) saturate(1.5);
         }}
+        .domo-top::before {{ content: ""; position: absolute; inset: 0; pointer-events: none;
+            background: radial-gradient(120% 140% at 0% 0%, var(--accent-soft), transparent 52%); opacity: .7; }}
+        .domo-brand, .domo-sep, .domo-target {{ position: relative; z-index: 1; }}
         .domo-brand {{ display: flex; align-items: center; gap: 14px; min-width: 0; }}
         .domo-logo {{
-            width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
-            display: grid; place-items: center;
-            background: var(--text); color: var(--surface);
-            font-weight: 800; font-size: 20px; letter-spacing: -1px;
+            width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            box-shadow: 0 10px 26px -8px var(--accent), inset 0 1px 0 rgba(255,255,255,0.45);
         }}
+        .domo-dome {{ width: 22px; height: 12px; background: #ffffff; border-radius: 12px 12px 0 0; }}
+        .domo-base {{ width: 27px; height: 3.5px; background: #ffffff; border-radius: 2px; }}
         .domo-name {{
-            font-size: 20px; font-weight: 800; color: var(--text);
+            font-family: {FONT_DISPLAY}; font-size: 20px; font-weight: 700; color: var(--text);
             letter-spacing: -0.02em; line-height: 1.05;
         }}
         .domo-tagline {{
@@ -179,18 +206,20 @@ def build_css(T: dict) -> str:
         .domo-sep {{ width: 1px; background: var(--border); align-self: stretch; }}
         .domo-target {{ display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; }}
         .domo-target-lbl {{
-            font-size: 10.5px; color: var(--muted); font-weight: 700;
+            font-size: 10.5px; color: var(--accent-2); font-weight: 700;
             text-transform: uppercase; letter-spacing: 2px;
         }}
         .domo-target-name {{
-            font-size: clamp(18px, 2.4vw, 26px); font-weight: 800; color: var(--text);
+            font-family: {FONT_DISPLAY};
+            font-size: clamp(18px, 2.4vw, 26px); font-weight: 700; color: var(--text);
             letter-spacing: -0.02em; line-height: 1.15; margin-top: 2px;
             overflow-wrap: anywhere; word-break: break-word;
         }}
         .domo-target-meta {{ font-size: 13px; color: var(--text-soft); margin-top: 3px; font-weight: 500; }}
 
         /* ---------- Sidebar ---------- */
-        [data-testid="stSidebar"] {{ background: var(--surface); border-right: 1px solid var(--border); }}
+        [data-testid="stSidebar"] {{ background: var(--surface); border-right: 1px solid var(--border);
+            -webkit-backdrop-filter: blur(26px) saturate(1.4); backdrop-filter: blur(26px) saturate(1.4); }}
         [data-testid="stSidebar"] * {{ color: var(--text); }}
         [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{ color: var(--text); }}
         [data-testid="stSidebar"] [data-testid="stCaptionContainer"], [data-testid="stSidebar"] small {{ color: var(--muted) !important; }}
@@ -201,8 +230,15 @@ def build_css(T: dict) -> str:
             background: var(--surface-2) !important; color: var(--text) !important;
             border-color: var(--border) !important; border-radius: 10px !important;
         }}
+        /* selectbox não deve parecer campo de digitação (sem cursor piscando) */
+        [data-baseweb="select"] input {{ caret-color: transparent !important; cursor: pointer !important; }}
+        [data-baseweb="select"], [data-baseweb="select"] * {{ cursor: pointer; }}
+        /* placeholders sempre visíveis (inclusive no modo claro) */
+        input::placeholder, textarea::placeholder {{ color: var(--muted) !important; opacity: 1 !important; }}
+        [data-baseweb="select"] [class*="placeholder"] {{ color: var(--muted) !important; }}
         [data-baseweb="popover"], [role="listbox"], [data-baseweb="menu"] {{
-            background: var(--surface) !important; color: var(--text) !important;
+            background: var(--solid) !important; color: var(--text) !important;
+            border: 1px solid var(--border-strong) !important; border-radius: 12px !important;
         }}
         [role="option"] {{ color: var(--text) !important; }}
         [role="option"]:hover {{ background: var(--surface-2) !important; }}
@@ -210,36 +246,45 @@ def build_css(T: dict) -> str:
         /* ---------- Abas ---------- */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 4px; background: var(--surface); padding: 6px;
-            border-radius: 14px; border: 1px solid var(--border);
-            box-shadow: var(--shadow); flex-wrap: wrap;
+            border-radius: 18px; border: 1px solid var(--border);
+            box-shadow: var(--shadow), inset 0 1px 0 var(--hl); flex-wrap: wrap;
+            -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
         }}
         .stTabs [data-baseweb="tab"] {{
-            height: 38px; border-radius: 9px; padding: 0 14px;
+            height: 40px; border-radius: 12px; padding: 0 16px;
             background: transparent; border: none;
+            transition: transform .15s ease, background .2s ease;
         }}
         .stTabs [data-baseweb="tab"] p {{
             font-size: 13.5px !important; font-weight: 600;
-            color: var(--text-soft) !important; font-family: {FONT_SANS};
+            color: var(--muted) !important; font-family: {FONT_SANS}; letter-spacing: -0.01em;
         }}
-        .stTabs [data-baseweb="tab"]:hover {{ background: var(--surface-2); }}
-        .stTabs [aria-selected="true"] {{ background: var(--text) !important; }}
-        .stTabs [aria-selected="true"] p {{ color: var(--surface) !important; }}
+        .stTabs [data-baseweb="tab"]:hover {{ background: var(--surface-2); transform: translateY(-1px); }}
+        .stTabs [aria-selected="true"] {{
+            background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important;
+            box-shadow: 0 8px 22px -8px var(--accent), inset 0 1px 0 rgba(255,255,255,0.4);
+        }}
+        .stTabs [aria-selected="true"] p {{ color: #ffffff !important; font-weight: 700; }}
         .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {{ display: none; }}
 
         /* ---------- Cartões KPI ---------- */
         .d-card {{
-            background: var(--surface); border-radius: 16px; padding: 18px 20px;
-            border: 1px solid var(--border); box-shadow: var(--shadow);
-            height: 100%; transition: transform .16s ease, box-shadow .16s ease;
+            background: var(--surface); border-radius: 18px; padding: 18px 20px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow), inset 0 1px 0 var(--hl);
+            -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
+            height: 100%; transition: transform .18s ease, box-shadow .18s ease, border-color .2s ease;
         }}
-        .d-card:hover {{ transform: translateY(-2px); }}
+        .d-card:hover {{ transform: translateY(-3px); border-color: var(--accent-line);
+            box-shadow: 0 30px 60px -30px var(--accent), inset 0 1px 0 var(--hl); }}
         .d-card .lbl {{
             font-size: 11px; color: var(--muted); text-transform: uppercase;
             letter-spacing: 1px; font-weight: 700;
         }}
         .d-card .val {{
-            font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 800;
-            color: var(--text); margin: 8px 0 4px; letter-spacing: -0.02em;
+            font-family: {FONT_MONO}; font-variant-numeric: tabular-nums;
+            font-size: 25px; font-weight: 600;
+            color: var(--text); margin: 9px 0 4px; letter-spacing: -0.03em;
         }}
         .d-card .dlt-pos {{ color: var(--good); font-size: 12.5px; font-weight: 700; }}
         .d-card .dlt-neg {{ color: var(--bad); font-size: 12.5px; font-weight: 700; }}
@@ -255,8 +300,9 @@ def build_css(T: dict) -> str:
         .insight {{
             background: var(--surface); border: 1px solid var(--border);
             border-left: 4px solid var(--c, var(--accent));
-            border-radius: 14px; padding: 18px 22px; margin: 12px 0;
-            box-shadow: var(--shadow);
+            border-radius: 16px; padding: 18px 22px; margin: 12px 0;
+            box-shadow: var(--shadow), inset 0 1px 0 var(--hl);
+            -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3);
         }}
         .insight-head {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
         .insight-dot {{ width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--accent)); flex-shrink: 0; }}
@@ -274,12 +320,14 @@ def build_css(T: dict) -> str:
 
         /* ---------- Gráficos e tabelas ---------- */
         [data-testid="stPlotlyChart"] {{
-            background: var(--surface); border-radius: 16px; padding: 10px 8px 4px;
-            border: 1px solid var(--border); box-shadow: var(--shadow);
+            background: var(--surface); border-radius: 18px; padding: 12px 10px 6px;
+            border: 1px solid var(--border); box-shadow: var(--shadow), inset 0 1px 0 var(--hl);
+            -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4);
         }}
         [data-testid="stDataFrame"] {{
-            border-radius: 14px; overflow: hidden;
+            border-radius: 16px; overflow: hidden;
             border: 1px solid var(--border); box-shadow: var(--shadow);
+            -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
         }}
         [data-testid="stAlert"] {{ border-radius: 12px; }}
 
@@ -287,6 +335,25 @@ def build_css(T: dict) -> str:
         [data-testid="stSidebar"] div[role="slider"] {{
             background: var(--accent) !important;
             box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+        }}
+
+        /* Toggle de tema: a trilha é o 1º filho do label (o texto do rótulo é o último,
+           então não é afetado). Borda de acento garante visibilidade no modo claro. */
+        [data-baseweb="checkbox"] > div:first-child,
+        [data-baseweb="checkbox"] > span:first-child {{
+            background: var(--muted) !important;
+            border: 2px solid var(--accent) !important;
+        }}
+        [data-baseweb="checkbox"]:has(input:checked) > div:first-child,
+        [data-baseweb="checkbox"]:has(input:checked) > span:first-child {{
+            background: var(--accent) !important;
+            border-color: var(--accent) !important;
+        }}
+        /* botão circular (knob) sempre branco, com contraste */
+        [data-baseweb="checkbox"] > div:first-child > div,
+        [data-baseweb="checkbox"] > span:first-child > span {{
+            background: #ffffff !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.25) !important;
         }}
     </style>
     """)
@@ -307,19 +374,11 @@ def _limpa_nome(razao: str) -> str:
 
 
 def header_html(empresa: str, setor: str, periodo: str) -> str:
-    """Cabeçalho fixo da Domo Consultoria + empresa em análise ao lado."""
+    """Cabeçalho fixo — apenas a empresa em análise (a marca Domo fica na sidebar)."""
     nome = _limpa_nome(empresa)
     setor = setor or "Setor não informado"
     return _html(f"""
     <div class="domo-top">
-        <div class="domo-brand">
-            <div class="domo-logo">D</div>
-            <div>
-                <div class="domo-name">Domo Consultoria</div>
-                <div class="domo-tagline">Inteligência Financeira</div>
-            </div>
-        </div>
-        <div class="domo-sep"></div>
         <div class="domo-target">
             <div class="domo-target-lbl">Empresa em análise</div>
             <div class="domo-target-name">{nome}</div>
@@ -329,17 +388,31 @@ def header_html(empresa: str, setor: str, periodo: str) -> str:
     """)
 
 
+def sidebar_brand_html() -> str:
+    """Marca Domo exibida no topo da barra lateral."""
+    return _html("""
+    <div class="domo-side">
+        <div class="domo-logo"><span class="domo-dome"></span><span class="domo-base"></span></div>
+        <div>
+            <div class="domo-name">Domo Consultoria</div>
+            <div class="domo-tagline">Inteligência Financeira</div>
+        </div>
+    </div>
+    """)
+
+
 def layout_base(titulo: str = "", altura: int = 420) -> dict:
     return dict(
-        title=dict(text=titulo, font=dict(size=15, color=TH["text"], family="Hanken Grotesk, Arial"),
+        title=dict(text=titulo, font=dict(size=15, color=TH["text"], family="Space Grotesk, Arial"),
                    x=0.01, xanchor="left"),
         height=altura, plot_bgcolor=TH["chart_bg"], paper_bgcolor=TH["chart_bg"],
-        font=dict(color=TH["text"], family="Hanken Grotesk, Arial", size=12),
-        margin=dict(t=64, b=48, l=56, r=28),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
+        font=dict(color=TH["text"], family="Manrope, Arial", size=12),
+        margin=dict(t=72, b=100, l=58, r=28),
+        legend=dict(orientation="h", yanchor="top", y=-0.20, xanchor="left", x=0,
                     bgcolor="rgba(0,0,0,0)", font=dict(size=12, color=TH["text_soft"])),
-        hoverlabel=dict(bgcolor=TH["surface_2"], bordercolor=TH["border"],
-                        font=dict(color=TH["text"], family="Hanken Grotesk, Arial")),
+        hoverlabel=dict(bgcolor=("#0d1416" if TH["mode"] == "dark" else "#ffffff"),
+                        bordercolor=TH["border"],
+                        font=dict(color=TH["text"], family="Manrope, Arial")),
     )
 
 
@@ -1113,8 +1186,7 @@ def main():
     # SIDEBAR — SELEÇÃO DE EMPRESA (setor + busca por nome/CNPJ)
     # =========================================================================
     with st.sidebar:
-        st.markdown("---")
-        st.markdown("### Domo Consultoria")
+        st.markdown(sidebar_brand_html(), unsafe_allow_html=True)
         st.caption("Análise de indicadores · CVM/DFP")
         st.markdown("---")
         st.markdown("#### Empresa")
