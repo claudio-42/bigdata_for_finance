@@ -873,7 +873,7 @@ def get_engine():
         # garante o driver correto
         db_url = db_url.replace("postgres://", "postgresql+psycopg2://", 1)
         db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-        return create_engine(db_url)
+        return create_engine(db_url, pool_pre_ping=True, pool_recycle=180)
 
     # --- 2ª opção: credenciais individuais ---
     user = quote_plus(_secrets_get("DB_USER") or os.getenv("DB_USER", "postgres"))
@@ -882,7 +882,7 @@ def get_engine():
     port = _secrets_get("DB_PORT") or os.getenv("DB_PORT", "5432")
     db   = _secrets_get("DB_NAME") or os.getenv("DB_NAME", "data_lake")
 
-    return create_engine(f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}")
+    return create_engine(f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}", pool_pre_ping=True, pool_recycle=180)
 
 
 @st.cache_data(ttl=3600, max_entries=1)
