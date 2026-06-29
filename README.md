@@ -235,7 +235,7 @@ Execute os notebooks **bronze → silver → gold**. Ao final, a tabela de indic
 
 ### 5. Rode o dashboard
 ```bash
-streamlit run minerva_app_isa_v2.py
+streamlit run app_multiempresa.py
 ```
 
 > ☁️ **Deploy no Streamlit Cloud:** configure as credenciais em **Settings → Secrets**, separadamente (`DB_USER`, `DB_PASS`, etc.) ou via `DATABASE_URL = "postgresql://usuario:senha@host:5432/nome_do_banco"`.
